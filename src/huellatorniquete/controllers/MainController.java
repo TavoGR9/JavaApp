@@ -1,7 +1,9 @@
 package huellatorniquete.controllers;
 
 import huellatorniquete.models.HuellaResponse;
+import huellatorniquete.models.User;
 import huellatorniquete.services.ApiService;
+import huellatorniquete.databaseMethods.DataInserter;
 import java.util.List;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -31,6 +33,12 @@ public class MainController {
         //botonClick.setOnAction(event -> onBotonClick());
         getFrase();
         labelMotivacion.setText(frase);
+        
+        
+        //Se traen los registros de la base de datos local h2
+        
+        List<User> userData = DataInserter.geth2InfoUser();
+        System.out.println("LISTAAAAAAA: "+userData);
     }
 
     private void onBotonClick() {
@@ -50,5 +58,6 @@ public class MainController {
             //labelSaludo.setText("Error al obtener las huellas.");
         }
     }
-    
+   
+       
 }
