@@ -1,7 +1,9 @@
 package huellatorniquete;
 
 import huellatorniquete.models.HuellaResponse;
+import huellatorniquete.models.User;
 import huellatorniquete.services.ApiService;
+import huellatorniquete.databaseMethods.DataInserter;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -16,7 +18,7 @@ import java.util.logging.Logger;
 public class HuellaTorniquete extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(HuellaTorniquete.class.getName());
-    private static String idSucursal = "4";
+    private static String idSucursal = "2";
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -31,7 +33,8 @@ public class HuellaTorniquete extends Application {
         primaryStage.show();
 
         // Mover la lógica de consumo de API aquí
-        consumeApiService();
+        //consumeApiService();
+        consumegetDataUser();
     }
 
     public static void main(String[] args) {
@@ -59,7 +62,7 @@ public class HuellaTorniquete extends Application {
         }
     }
 
-    private void consumeApiService() {
+    /*private void consumeApiService() {
         try {
             List<HuellaResponse> huellas = ApiService.getHuellas(idSucursal);
             if (!huellas.isEmpty()) {
@@ -72,6 +75,23 @@ public class HuellaTorniquete extends Application {
             // Aquí podrías actualizar la UI para mostrar el error, por ejemplo:
             // Platform.runLater(() -> showErrorDialog("Error al obtener las huellas"));
         }
+    }*/
+    
+    private void consumegetDataUser(){
+       try {
+            List<User> userData = ApiService.getDataClient(idSucursal);
+            if (!userData.isEmpty()) {
+                LOGGER.log(Level.INFO, "Data client: {0}", userData);
+                System.out.println("tamaño: "+userData.size());
+                DataInserter.insertData(userData);
+            } else {
+                LOGGER.info("No se encontraron huellas");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener las huellas", e);
+            // Aquí podrías actualizar la UI para mostrar el error, por ejemplo:
+            // Platform.runLater(() -> showErrorDialog("Error al obtener las huellas"));
+        } 
     }
 
     // Método para mostrar un diálogo de error (implementa según tus necesidades)

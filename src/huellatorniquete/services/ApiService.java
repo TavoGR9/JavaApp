@@ -3,6 +3,7 @@ package huellatorniquete.services;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import huellatorniquete.models.HuellaResponse;
+import huellatorniquete.models.User;
 import java.io.IOException;
 
 import java.net.URI;
@@ -81,4 +82,50 @@ public class ApiService {
             return "Error catch";  // Retorna una lista vacía en caso de error
         }
     }
+    
+    public static List<User> getDataClient(String IdSucursal) {
+    try {
+        // Crear el cliente HTTP
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?consultarCliente=" + IdSucursal))
+                .build();
+
+        System.out.println("URL SERVICE: " + request);
+
+        // Hacer la solicitud y obtener la respuesta
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // Verificar si la respuesta fue exitosa (código 200)
+        if (response.statusCode() == 200) {
+            // Deserializar el JSON en una lista de objetos User
+            ObjectMapper objectMapper = new ObjectMapper();
+            List<User> userList;
+
+            // Manejar tanto una lista como un único objeto JSON
+            String responseBody = response.body();
+            if (responseBody.startsWith("[")) {
+                // Es una lista
+                userList = objectMapper.readValue(responseBody, new TypeReference<List<User>>() {});
+            } else {
+                // Es un solo objeto
+                User singleUser = objectMapper.readValue(responseBody, User.class);
+                userList = List.of(singleUser); // Convertirlo en una lista con un solo elemento
+            }
+
+            // Serializar la lista de objetos de vuelta a JSON (para depuración)
+            String jsonResult = objectMapper.writeValueAsString(userList);
+            System.out.println("Lista Users a JSON: " + jsonResult);
+
+            return userList;
+        } else {
+            System.out.println("Error en la respuesta: " + response.statusCode());
+            return List.of(); // Retornar una lista vacía en caso de error
+        }
+    } catch (IOException | InterruptedException e) {
+        System.out.println("Error durante la solicitud: " + e.getMessage());
+        return List.of(); // Retornar una lista vacía en caso de excepción
+    }
+}
+
 }
