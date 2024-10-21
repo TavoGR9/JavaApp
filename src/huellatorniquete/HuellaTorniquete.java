@@ -1,9 +1,11 @@
 package huellatorniquete;
 
+import com.digitalpersona.uareu.Reader;
 import huellatorniquete.models.HuellaResponse;
 import huellatorniquete.models.User;
 import huellatorniquete.services.ApiService;
 import huellatorniquete.databaseMethods.DataInserter;
+import huellatorniquete.controllers.MainController;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -18,7 +20,7 @@ import java.util.logging.Logger;
 public class HuellaTorniquete extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(HuellaTorniquete.class.getName());
-    private static String idSucursal = "2";
+    private static String idSucursal = "4";
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -35,6 +37,10 @@ public class HuellaTorniquete extends Application {
         // Mover la lógica de consumo de API aquí
         //consumeApiService();
         consumegetDataUser();
+        Reader mainReader = MainController.getReaders();
+        if(mainReader != null){
+            MainController.capturarHuella(mainReader);
+        }
     }
 
     public static void main(String[] args) {
