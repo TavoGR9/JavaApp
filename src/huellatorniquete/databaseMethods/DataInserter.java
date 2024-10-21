@@ -17,59 +17,69 @@ import java.sql.ResultSet;
  */
 public class DataInserter {
     public static void insertData(List<User> userData) {
+        String deleteSQL = "DELETE FROM DATACLIENT";  // SQL para eliminar todos los registros
         String insertSQL = "INSERT INTO DATACLIENT ("
             + "ID, Nombre, Telefono, Email, Sucursal, Membresia, Info_Membresia, Duracion, Precio, Fecha_Inicio, Fecha_Fin, Status, IdDetMem, Membresia_idMem, Gimnasio_idGimnasio, Accion, Foto, Huella, Status_Num, EstatusPago, Rol, Estafeta, Servicio, FechaRegistro"
             + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement preparedStatement = connection.prepareStatement(insertSQL)) {    
+             PreparedStatement deleteStatement = connection.prepareStatement(deleteSQL);
+             PreparedStatement insertStatement = connection.prepareStatement(insertSQL)) {
+
+            // 1. Eliminar todos los registros actuales en la tabla
+            deleteStatement.executeUpdate();
+
+            // 2. Insertar los nuevos datos
             for (User user : userData) {
                 if (user != null) {
-                    preparedStatement.setInt(1, user.getId());
-                    preparedStatement.setString(2, user.getNombre() != null ? user.getNombre() : "");
-                    preparedStatement.setString(3, user.getTelefono() != null ? user.getTelefono() : "");
-                    preparedStatement.setString(4, user.getEmail() != null ? user.getEmail() : "");
-                    preparedStatement.setString(5, user.getSucursal() != null ? user.getSucursal() : "");
-                    preparedStatement.setString(6, user.getMembresia() != null ? user.getMembresia() : "");
-                    preparedStatement.setString(7, user.getInfoMembresia() != null ? user.getInfoMembresia() : "");
-                    preparedStatement.setInt(8, user.getDuracion() != null ? user.getDuracion() : 0);
-                    preparedStatement.setInt(9, user.getPrecio() != null ? user.getPrecio() : 0);  // Precio agregado
+                    insertStatement.setInt(1, user.getId());
+                    insertStatement.setString(2, user.getNombre() != null ? user.getNombre() : "");
+                    insertStatement.setString(3, user.getTelefono() != null ? user.getTelefono() : "");
+                    insertStatement.setString(4, user.getEmail() != null ? user.getEmail() : "");
+                    insertStatement.setString(5, user.getSucursal() != null ? user.getSucursal() : "");
+                    insertStatement.setString(6, user.getMembresia() != null ? user.getMembresia() : "");
+                    insertStatement.setString(7, user.getInfoMembresia() != null ? user.getInfoMembresia() : "");
+                    insertStatement.setInt(8, user.getDuracion() != null ? user.getDuracion() : 0);
+                    insertStatement.setInt(9, user.getPrecio() != null ? user.getPrecio() : 0);  // Precio agregado
 
                     if (user.getFechaInicio() != null && !user.getFechaInicio().isEmpty()) {
-                        preparedStatement.setDate(10, java.sql.Date.valueOf(user.getFechaInicio()));
+                        insertStatement.setDate(10, java.sql.Date.valueOf(user.getFechaInicio()));
                     } else {
-                        preparedStatement.setNull(10, java.sql.Types.DATE);
+                        insertStatement.setNull(10, java.sql.Types.DATE);
                     }
 
                     if (user.getFechaFin() != null && !user.getFechaFin().isEmpty()) {
-                        preparedStatement.setDate(11, java.sql.Date.valueOf(user.getFechaFin()));
+                        insertStatement.setDate(11, java.sql.Date.valueOf(user.getFechaFin()));
                     } else {
-                        preparedStatement.setNull(11, java.sql.Types.DATE);
+                        insertStatement.setNull(11, java.sql.Types.DATE);
                     }
 
-                    preparedStatement.setString(12, user.getStatus() != null ? user.getStatus() : "");
-                    preparedStatement.setInt(13, user.getIdDetMem() != null ? user.getIdDetMem() : 0);
-                    preparedStatement.setInt(14, user.getMembresiaIdMem() != null ? user.getMembresiaIdMem() : 0);
-                    preparedStatement.setInt(15, user.getGimnasioIdGimnasio() != null ? user.getGimnasioIdGimnasio() : 0);
-                    preparedStatement.setString(16, user.getAccion() != null ? user.getAccion() : "");
-                    preparedStatement.setString(17, user.getFoto() != null ? user.getFoto() : "");
-                    preparedStatement.setString(18, user.getHuella() != null ? user.getHuella() : "");
-                    preparedStatement.setInt(19, user.getStatusNum() != null ? user.getStatusNum() : 0);
-                    preparedStatement.setString(20, user.getEstatusPago() != null ? user.getEstatusPago() : "");
-                    preparedStatement.setString(21, user.getRol() != null ? user.getRol() : "");
-                    preparedStatement.setString(22, user.getEstafeta() != null ? user.getEstafeta() : "");
-                    preparedStatement.setString(23, user.getServicio() != null ? user.getServicio() : "");
+                    insertStatement.setString(12, user.getStatus() != null ? user.getStatus() : "");
+                    insertStatement.setInt(13, user.getIdDetMem() != null ? user.getIdDetMem() : 0);
+                    insertStatement.setInt(14, user.getMembresiaIdMem() != null ? user.getMembresiaIdMem() : 0);
+                    insertStatement.setInt(15, user.getGimnasioIdGimnasio() != null ? user.getGimnasioIdGimnasio() : 0);
+                    insertStatement.setString(16, user.getAccion() != null ? user.getAccion() : "");
+                    insertStatement.setString(17, user.getFoto() != null ? user.getFoto() : "");
+                    insertStatement.setString(18, user.getHuella() != null ? user.getHuella() : "");
+                    insertStatement.setInt(19, user.getStatusNum() != null ? user.getStatusNum() : 0);
+                    insertStatement.setString(20, user.getEstatusPago() != null ? user.getEstatusPago() : "");
+                    insertStatement.setString(21, user.getRol() != null ? user.getRol() : "");
+                    insertStatement.setString(22, user.getEstafeta() != null ? user.getEstafeta() : "");
+                    insertStatement.setString(23, user.getServicio() != null ? user.getServicio() : "");
 
                     if (user.getFechaRegistro() != null && !user.getFechaRegistro().isEmpty()) {
-                        preparedStatement.setTimestamp(24, Timestamp.valueOf(user.getFechaRegistro()));
+                        insertStatement.setTimestamp(24, Timestamp.valueOf(user.getFechaRegistro()));
                     } else {
-                        preparedStatement.setNull(24, java.sql.Types.TIMESTAMP);
+                        insertStatement.setNull(24, java.sql.Types.TIMESTAMP);
                     }
 
-                    preparedStatement.addBatch();
+                    insertStatement.addBatch();
                 }
             }
-            preparedStatement.executeBatch();
+
+            // Ejecutar el batch para insertar los nuevos registros
+            insertStatement.executeBatch();
+
         } catch (SQLException e) {
             e.printStackTrace();
         }

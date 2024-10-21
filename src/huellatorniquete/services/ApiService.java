@@ -17,7 +17,7 @@ public class ApiService {
     private static final String API_URL = "https://olympus.arvispace.com/";
 
     // Este método devolverá una lista de objetos HuellaResponse
-    public static List<HuellaResponse> getHuellas(String idSucursal) {
+   /* public static List<HuellaResponse> getHuellas(String idSucursal) {
         try {
             // Crear el cliente HTTP
             HttpClient client = HttpClient.newHttpClient();
@@ -49,7 +49,7 @@ public class ApiService {
         } catch (IOException | InterruptedException e) {
             return List.of(); // Retornar una lista vacía en caso de excepción
         }
-    }
+    }*/
     
     
     //este metodo retorna una frase diferente
