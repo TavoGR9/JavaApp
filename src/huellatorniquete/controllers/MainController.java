@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
@@ -109,16 +110,8 @@ public class MainController {
         System.out.println("Tamaño de lista FMD: "+userData.size());
         
         
-        
-    SerialPort[] ports = SerialPort.getCommPorts();
-    for (SerialPort port : ports) {
-    System.out.println("names ports: " + port.getDescriptivePortName());
-    if (port.getDescriptivePortName().contains("USB-SERIAL")) {
-        seleccionado = port;
-        System.out.println("seleccionado puerto: "+seleccionado);
-        break;  // Detenemos el ciclo si ya encontramos el puerto
-    }
-}
+        getPort();
+    
     
     
     mediaPlayerSuccess = new MediaPlayer(soundSuccess);
@@ -140,6 +133,18 @@ public class MainController {
         System.out.println("No se encontraron puertos COM disponibles.");
     }*/
         
+    }
+    
+    private void getPort() {
+        SerialPort[] ports = SerialPort.getCommPorts();
+    for (SerialPort port : ports) {
+    System.out.println("names ports: " + port.getDescriptivePortName());
+    if (port.getDescriptivePortName().contains("USB-SERIAL")) {
+        seleccionado = port;
+        System.out.println("seleccionado puerto: "+seleccionado);
+        break;  // Detenemos el ciclo si ya encontramos el puerto
+    }
+}
     }
 
     private void getFrase(){
@@ -182,7 +187,13 @@ public class MainController {
                         membershipStatusLabel.setText("Membresia Activa");
                         //enviarSeñalApertura("COM7");
                         //enviarATodasLosPuertos();
-                        enviarDato(seleccionado,1);
+                        if (seleccionado != null) {
+                            enviarSeñalApertura(seleccionado.getSystemPortName());
+                            enviarDato(seleccionado, 1);
+                            System.out.println("Puerto: " + seleccionado);
+                        } else {
+                            System.out.println("El puerto seleccionado es nulo. Verifica la selección del puerto.");
+                        }
                         paneleft.setStyle("-fx-background-color: #98ff96;");
                     } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
                         mediaPlayerSuccess.stop();
@@ -190,6 +201,7 @@ public class MainController {
                         mediaPlayerSuccess.play();                        
                         membershipStatusLabel.setText("Activo - Hoy finaliza la membresia");
                         paneleft.setStyle("-fx-background-color: yellow;");
+                        enviarSeñalApertura(seleccionado.getSystemPortName()); // Aquí envías la señal
                         enviarDato(seleccionado,1);
                     } else if(user.getStatus().equalsIgnoreCase("Desactivado")){
                         mediaPlayerError.stop();
@@ -431,7 +443,27 @@ public class MainController {
                                                 //System.out.println("comparando: capturada: "+capturedFmd + "se compara con: "+storedFmd);
                                                 System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombre());
                                                 huellaEncontrada = true;
-                                                compareFingerprint(userData);
+                                                System.out.println("huella encntrada: " + huellaEncontrada);
+                                                
+                                                getPort();
+        
+                                                
+                                                if (seleccionado != null) {
+                                                    if (user.getStatus().equalsIgnoreCase("Activo")){
+                                                       enviarSeñalApertura(seleccionado.getSystemPortName());
+                                                        enviarDato(seleccionado, 1);
+                                                        System.out.println("Usuario encontrado: " + user);
+                                                        System.out.println("Valor de Nombre: " + user.getNombre());
+                                                        System.out.println("Actualizando la interfaz con los datos del usuario...");
+                                                        nameLabel.setText(user.getNombre()); 
+                                                    } else {
+                                                        System.out.println("Usuario desactivado");
+                                                    }
+                                                     
+                                                } else {
+                                                    System.out.println("El puerto seleccionado es nulo.");
+                                                    System.out.println("Valor de seleccionado: " + seleccionado);
+                                                }
                                                 break;
                                             }
                                         } catch (UareUException e) {
