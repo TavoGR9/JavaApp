@@ -1,5 +1,6 @@
 
 package huellatorniquete.models;
+import com.digitalpersona.uareu.Fmd;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.sql.Blob;
@@ -83,6 +84,9 @@ public class User {
     @JsonProperty("fechaRegistro")
     private String fechaRegistro;
     
+    private Fmd BinHuella;
+
+    
     
     @Override
 public String toString() {
@@ -112,6 +116,7 @@ public String toString() {
             ", estafeta='" + estafeta + '\'' +
             ", servicio='" + servicio + '\'' +
             ", fechaRegistro='" + fechaRegistro + '\'' +
+            ", BinHuella='" + BinHuella + '\'' +
             '}';
 }
 
@@ -252,6 +257,10 @@ public Integer getDuracion() {
         return fechaRegistro;
     }
     
+    public Fmd getHuellaFmd() {
+        return BinHuella;
+    }
+    
     //setters
 
     public void setID(String ID) {
@@ -348,5 +357,9 @@ public Integer getDuracion() {
 
     public void setFechaRegistro(String fechaRegistro) {
         this.fechaRegistro = fechaRegistro;
+    }
+    
+    public void setHuella(Fmd huella){
+        this.BinHuella = huella;
     }
 }
