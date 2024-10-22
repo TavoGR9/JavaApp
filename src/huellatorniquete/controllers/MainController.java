@@ -1,8 +1,10 @@
 package huellatorniquete.controllers;
 
+import com.digitalpersona.uareu.Engine;
 import com.digitalpersona.uareu.Fid;
 import com.digitalpersona.uareu.Fmd;
 import com.digitalpersona.uareu.Reader;
+import com.digitalpersona.uareu.Reader.ReaderStatus;
 import com.digitalpersona.uareu.ReaderCollection;
 import com.digitalpersona.uareu.UareUException;
 import com.digitalpersona.uareu.UareUGlobal;
@@ -17,20 +19,39 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 
 import com.fazecast.jSerialComm.*;
+import huellatorniquete.HuellaTorniquete;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.concurrent.Task;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.util.Duration;
 import javax.swing.SwingWorker;
 
 public class MainController {
     
     List<User> userData = new ArrayList<>();
     SerialPort seleccionado = null;  // Inicializamos como null
+    HuellaTorniquete ht = new HuellaTorniquete();
+    String audioFilePath = "src/huellatorniquete/sounds/Success.mp3"; // Cambia por la ruta de tu archivo
+    String audioFilePath2 = "src/huellatorniquete/sounds/Error.mp3";
 
+    // Cargar el archivo de audio
+        Media soundSuccess = new Media(Paths.get(audioFilePath).toUri().toString());
+        Media soundError = new Media(Paths.get(audioFilePath2).toUri().toString());
+        
+        private MediaPlayer mediaPlayerSuccess;
+        private MediaPlayer mediaPlayerError;
     
     @FXML
     private Label labelMotivacion;
@@ -76,8 +97,18 @@ public class MainController {
         getFrase();
         labelMotivacion.setText(frase);
         
+        
+        
         userData = DataInserter.geth2InfoUser();
-        System.out.println("Lista de usuarios cargada: " + userData);
+        /*System.out.println("Lista de usuarios cargada: " + userData);
+        System.out.println("Tamaño antes de convertirla a FMD controller: "+userData.size());*/
+
+        
+        convertHuellas(userData);
+        System.out.println("Lista con fmd: "+userData);
+        System.out.println("Tamaño de lista FMD: "+userData.size());
+        
+        
         
     SerialPort[] ports = SerialPort.getCommPorts();
     for (SerialPort port : ports) {
@@ -88,8 +119,18 @@ public class MainController {
         break;  // Detenemos el ciclo si ya encontramos el puerto
     }
 }
+    
+    
+    mediaPlayerSuccess = new MediaPlayer(soundSuccess);
+    mediaPlayerError = new MediaPlayer(soundError);
+    
+    
+    
+    
+    System.out.println("Ruta de éxito: " + Paths.get(audioFilePath).toUri().toString());
+    System.out.println("Ruta de error: " + Paths.get(audioFilePath2).toUri().toString());
         
-        // Verificar puertos COM disponibles y usar el primero disponible
+ // Verificar puertos COM disponibles y usar el primero disponible
     /*SerialPort[] ports = SerialPort.getCommPorts();
     if (ports.length > 0) {
         String firstPortName = ports[0].getSystemPortName();
@@ -135,16 +176,25 @@ public class MainController {
                     endDateLabel.setText(user.getFechaFin());
                     encontrado = true;
                     if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() >= 10){
+                        mediaPlayerSuccess.stop();  // Detener si está reproduciendo
+                        mediaPlayerSuccess.seek(Duration.ZERO);  // Reiniciar al inicio
+                        mediaPlayerSuccess.play();
                         membershipStatusLabel.setText("Membresia Activa");
                         //enviarSeñalApertura("COM7");
                         //enviarATodasLosPuertos();
                         enviarDato(seleccionado,1);
                         paneleft.setStyle("-fx-background-color: #98ff96;");
                     } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
+                        mediaPlayerSuccess.stop();
+                        mediaPlayerSuccess.seek(Duration.ZERO);
+                        mediaPlayerSuccess.play();                        
                         membershipStatusLabel.setText("Activo - Hoy finaliza la membresia");
                         paneleft.setStyle("-fx-background-color: yellow;");
                         enviarDato(seleccionado,1);
                     } else if(user.getStatus().equalsIgnoreCase("Desactivado")){
+                        mediaPlayerError.stop();
+                        mediaPlayerError.seek(Duration.ZERO);
+                        mediaPlayerError.play();
                         membershipStatusLabel.setText("Sin membresia");
                         paneleft.setStyle("-fx-background-color: red;");
                     }
@@ -218,7 +268,6 @@ public class MainController {
         }
     }*/
     
-    
      public static void enviarSeñalApertura(String portName) {
         SerialPort port = SerialPort.getCommPort(portName);
         
@@ -266,7 +315,6 @@ public class MainController {
     // Ejecutar el task en un hilo separado
     new Thread(task).start();
 }
-    
     
     //nuevo metodo
     /*public static void enviarDato(SerialPort puerto, String dato) {
@@ -323,10 +371,6 @@ public class MainController {
     }
 }
     
-    
-    
-    
-    
     //FINGERPRINT READER
     public static Reader getReaders(){
     Reader reader = null;
@@ -355,8 +399,97 @@ public class MainController {
     return reader;
 }
     
-    
+   
+     public void compareFingerprint(List<User> userData) {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                try {
+                    ReaderCollection readers = UareUGlobal.GetReaderCollection();
+                    readers.GetReaders();
+                    if (readers.size() > 0) {
+                        Reader reader = readers.get(0);
+                        try {
+                            reader.Open(Reader.Priority.EXCLUSIVE);
+                            Fmd capturedFmd = capturarHuella(reader);
+                            System.out.println("capturada: "+capturedFmd);
+                            
+                            if (capturedFmd != null) {
+                                boolean huellaEncontrada = false;
+                                for (User user : userData) {
+                                    //Fmd storedFmd = user.getHuellaFmd();
+                                    //System.out.println("se comparara con: "+storedFmd);
+                                    System.out.println("MIRA LOS QUE SE RECORREN:" +user.getHuellaFmd());
+
+                                    if (user.getHuellaFmd() != null) {
+                                        try {
+                                            int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
+                                            //int targetFalsematchRate = Engine.PROBABILITY_ONE / 100000; // Target rate is 0.00001
+                                            int threshold = 100000; // Ajusta este valor según tus necesidades
+
+                                            if (score < threshold) {
+                                                //System.out.println("comparando: capturada: "+capturedFmd + "se compara con: "+storedFmd);
+                                                System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombre());
+                                                huellaEncontrada = true;
+                                                compareFingerprint(userData);
+                                                break;
+                                            }
+                                        } catch (UareUException e) {
+                                            System.err.println("Error al comparar huellas: " + e.getMessage());
+                                        }
+                                    }
+                                }
+                                if (!huellaEncontrada) {
+                                    System.out.println("No se encontró ninguna huella coincidente.");
+                                   
+                                    //capturarHuella(reader);
+                                    compareFingerprint(userData);
+                                }
+                            } else {
+                                System.out.println("No se pudo capturar la huella.");
+                            }
+                        } finally {
+                            try {
+                                reader.Close();
+                            } catch (UareUException e) {
+                                System.err.println("Error al cerrar el lector: " + e.getMessage());
+                            }
+                        }
+                    } else {
+                        System.out.println("No se encontraron lectores de huellas dactilares.");
+                    }
+                } catch (UareUException e) {
+                    System.err.println("Error: " + e.getMessage());
+                }
+                return null;
+            }
+        };
+        worker.execute();
+    }
+
     public static Fmd capturarHuella(Reader reader) {
+        try {
+            Reader.CaptureResult captureResult = reader.Capture(
+                Fid.Format.ANSI_381_2004,
+                Reader.ImageProcessing.IMG_PROC_DEFAULT,
+                500,
+                -1
+            );
+            if (captureResult != null && captureResult.quality == Reader.CaptureQuality.GOOD) {
+                return UareUGlobal.GetEngine().CreateFmd(
+                    captureResult.image,
+                    Fmd.Format.ANSI_378_2004
+                );
+            }
+        } catch (UareUException e) {
+            System.err.println("Error al capturar la huella: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    
+    //METODO OKE OKEY OKEY
+  /*  public static Fmd capturarHuella(Reader reader) {
     System.out.println("ESPERANDO LECTURA JEJEJE");
 
     SwingWorker<Fmd, Void> worker = new SwingWorker<Fmd, Void>() {
@@ -422,19 +555,46 @@ public class MainController {
 
     worker.execute();
     return null;
+}*/
+    
+   
+    public static void convertHuellas(List<User> dataUser) {
+    if (!dataUser.isEmpty()) {
+        for (User u : dataUser) {
+            String huella = u.getHuella();
+            if (!"".equals(huella)) {
+                try {
+                    // Usar el método decodificarFMD para convertir la huella
+                    Fmd fmd = decodificarFMD(huella);
+                    
+                    if (fmd != null) {
+                        // Establecer el Fmd en el objeto User
+                        u.setHuella(fmd);
+                        System.out.println("Huella a fmd jijiji: "+u.getHuellaFmd());
+                    } else {
+                        System.err.println("No se pudo decodificar la huella para el usuario " + u.getNombre());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error al convertir la huella para el usuario " + u.getNombre() + ": " + e.getMessage());
+                }
+            }
+        }
+    }
 }
 
-    //audio notificaciones
-   /* public void reproducirAudioMP3(String rutaArchivo) {
-    try {
-        FileInputStream archivo = new FileInputStream(rutaArchivo);
-        Player reproductor = new Player(archivo);
-        reproductor.play();
-    } catch (FileNotFoundException | JavaLayerException e) {
-        e.printStackTrace();
-    }
-}*/
+    public static Fmd decodificarFMD(String base64) {
+        try {
+            // Decodificar la cadena Base64 a un arreglo de bytes
+            byte[] data = Base64.getDecoder().decode(base64);
 
-    
+            // Crear un objeto FMD a partir del arreglo de bytes
+            Fmd fmd = UareUGlobal.GetImporter().ImportFmd(data, Fmd.Format.ANSI_378_2004, Fmd.Format.ANSI_378_2004);
+
+            return fmd;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null; // En caso de error, retornar null
+        }
+    }
     
 }

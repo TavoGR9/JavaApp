@@ -13,6 +13,7 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -21,6 +22,7 @@ public class HuellaTorniquete extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(HuellaTorniquete.class.getName());
     private static String idSucursal = "4";
+    private List<User> userData = new ArrayList<>();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -36,11 +38,29 @@ public class HuellaTorniquete extends Application {
 
         // Mover la lógica de consumo de API aquí
         //consumeApiService();
+        
+        userData = DataInserter.geth2InfoUser();
+        /*System.out.println("Lista de usuarios cargada desde main: " + userData);
+        System.out.println("Tamaño antes de convertirla a FMD main: "+userData.size());*/
+        
+        MainController.convertHuellas(userData);
+        System.out.println("Lista con fmd desde main: "+userData);
+        System.out.println("Tamaño de lista de FMD desde main: "+userData.size());
+        
+        
+            MainController mc = new MainController();
+
+        mc.compareFingerprint(userData);
+        /*MainController controller = new MainController();
+        controller.getIdToSearch(userData);*/
+
+        
         consumegetDataUser();
-        Reader mainReader = MainController.getReaders();
-        if(mainReader != null){
-            MainController.capturarHuella(mainReader);
-        }
+        
+        //Reader mainReader = MainController.getReaders();
+        /*if(mainReader != null){
+            //MainController.capturarHuella(mainReader);
+        }*/
     }
 
     public static void main(String[] args) {
@@ -85,7 +105,7 @@ public class HuellaTorniquete extends Application {
     
     private void consumegetDataUser(){
        try {
-            List<User> userData = ApiService.getDataClient(idSucursal);
+            userData = ApiService.getDataClient(idSucursal);
             if (!userData.isEmpty()) {
                 LOGGER.log(Level.INFO, "Data client: {0}", userData);
                 System.out.println("tamaño: "+userData.size());
@@ -100,6 +120,7 @@ public class HuellaTorniquete extends Application {
         } 
     }
 
+    
     // Método para mostrar un diálogo de error (implementa según tus necesidades)
     /*
     private void showErrorDialog(String message) {
