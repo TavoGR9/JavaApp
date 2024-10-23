@@ -26,6 +26,8 @@ public class HuellaTorniquete extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        consumegetDataUser();
+
         Parent root = FXMLLoader.load(getClass().getResource("/HuellaTorniquete/views/mainview.fxml"));
         
         Scene scene = new Scene(root);
@@ -55,7 +57,6 @@ public class HuellaTorniquete extends Application {
         controller.getIdToSearch(userData);*/
 
         
-        consumegetDataUser();
         
         //Reader mainReader = MainController.getReaders();
         /*if(mainReader != null){
