@@ -24,6 +24,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Paths;
+//import java.time.Duration;
 import java.util.Base64;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -135,7 +136,7 @@ public class MainController {
         
     }
     
-    private void getPort() {
+    /*private void getPort() {
         SerialPort[] ports = SerialPort.getCommPorts();
     for (SerialPort port : ports) {
     System.out.println("names ports: " + port.getDescriptivePortName());
@@ -145,6 +146,24 @@ public class MainController {
         break;  // Detenemos el ciclo si ya encontramos el puerto
     }
 }
+    }*/
+    
+    private void getPort() {
+        SerialPort[] ports = SerialPort.getCommPorts();
+        seleccionado = null; // Reset seleccionado antes de buscar
+        
+        for (SerialPort port : ports) {
+            System.out.println("names ports: " + port.getDescriptivePortName());
+            if (port.getDescriptivePortName().contains("USB-SERIAL")) {
+                seleccionado = port;
+                System.out.println("seleccionado puerto: " + seleccionado);
+                break;
+            }
+        }
+        
+        if (seleccionado == null) {
+            System.out.println("No se encontró ningún puerto USB-SERIAL");
+        }
     }
 
     private void getFrase(){
@@ -370,8 +389,7 @@ public class MainController {
         }
 
         Thread.sleep(100);  // Pequeña pausa para asegurar que el dato se envíe completamente
-        puerto.flushIOBuffers();
-
+        puerto.flushIOBuffers();  // Correcto
     } catch (Exception e) {
         System.out.println("Error al enviar el dato: " + e.getMessage());
         e.printStackTrace();
@@ -412,7 +430,7 @@ public class MainController {
 }
     
    
-     public void compareFingerprint(List<User> userData) {
+     /*public void compareFingerprint(List<User> userData) {
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() throws Exception {
@@ -497,7 +515,97 @@ public class MainController {
             }
         };
         worker.execute();
+    }*/
+    
+    
+    public void compareFingerprint(List<User> userData) {
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                try {
+                    ReaderCollection readers = UareUGlobal.GetReaderCollection();
+                    readers.GetReaders();
+                    if (readers.size() > 0) {
+                        Reader reader = readers.get(0);
+                        reader.Open(Reader.Priority.EXCLUSIVE);
+                        
+                        while (!isCancelled()) {
+                            try {
+                                Fmd capturedFmd = capturarHuella(reader);
+                                System.out.println("capturada: " + capturedFmd);
+
+                                if (capturedFmd != null) {
+                                    boolean huellaEncontrada = false;
+                                    for (User user : userData) {
+                                        if (user.getHuellaFmd() != null) {
+                                            try {
+                                                int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
+                                                int threshold = 100000;
+
+                                                if (score < threshold) {
+                                                    System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombre());
+                                                    huellaEncontrada = true;
+                                                    
+                                                    // Primero actualizamos el puerto
+                                                    Platform.runLater(() -> {
+                                                        try {
+                                                            getPort(); // Actualiza seleccionado
+                                                            if (seleccionado != null) {
+                                                                if (user.getStatus().equalsIgnoreCase("Activo")) {
+                                                                    // Ahora es seguro usar seleccionado
+                                                                    enviarSeñalApertura(seleccionado.getSystemPortName());
+                                                                    enviarDato(seleccionado, 1);
+                                                                } else {
+                                                                    System.out.println("Usuario desactivado");
+                                                                }
+                                                            } else {
+                                                                System.out.println("El puerto seleccionado es nulo.");
+                                                            }
+                                                        } catch (Exception e) {
+                                                            System.err.println("Error al procesar puerto: " + e.getMessage());
+                                                            e.printStackTrace();
+                                                        }
+                                                    });
+                                                    
+                                                    Thread.sleep(2000);
+                                                    break;
+                                                }
+                                            } catch (UareUException e) {
+                                                System.err.println("Error al comparar huellas: " + e.getMessage());
+                                            }
+                                        }
+                                    }
+                                    if (!huellaEncontrada) {
+                                        System.out.println("No se encontró ninguna huella coincidente.");
+                                        Thread.sleep(1000);
+                                    }
+                                } else {
+                                    System.out.println("No se pudo capturar la huella.");
+                                    Thread.sleep(500);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error en el ciclo de captura: " + e.getMessage());
+                                Thread.sleep(1000);
+                            }
+                        }
+                        
+                        reader.Close();
+                    } else {
+                        System.out.println("No se encontraron lectores de huellas dactilares.");
+                    }
+                } catch (UareUException e) {
+                    System.err.println("Error: " + e.getMessage());
+                }
+                return null;
+            }
+        };
+
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
     }
+    
+    
 
     public static Fmd capturarHuella(Reader reader) {
         try {
