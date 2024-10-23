@@ -10,7 +10,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DatabaseConnection {
-    private static final String JDBC_URL = "jdbc:h2:tcp://localhost/~/test";
+    private static final String JDBC_URL = "jdbc:h2:~/test";
     private static final String JDBC_USERNAME = "sa";
     private static final String JDBC_PASSWORD = "";
 
