@@ -27,8 +27,14 @@ public class HuellaTorniquete extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         consumegetDataUser();
+        
+        java.net.URL url = getClass().getResource("/HuellaTorniquete/views/mainview.fxml");
+        FXMLLoader loader = new FXMLLoader(url);
+        Parent root = loader.load();
+        MainController mc = loader.getController();
 
-        Parent root = FXMLLoader.load(getClass().getResource("/HuellaTorniquete/views/mainview.fxml"));
+        //Parent root = FXMLLoader.load(getClass().getResource("/HuellaTorniquete/views/mainview.fxml"));
+
         
         Scene scene = new Scene(root);
         scene.getStylesheets().add(getClass().getResource("/HuellaTorniquete/css/style.css").toExternalForm());
@@ -50,13 +56,11 @@ public class HuellaTorniquete extends Application {
         System.out.println("Tamaño de lista de FMD desde main: "+userData.size());
         
         
-            MainController mc = new MainController();
+            //MainController mc = new MainController();
 
         mc.compareFingerprint(userData);
         /*MainController controller = new MainController();
         controller.getIdToSearch(userData);*/
-
-        
         
         //Reader mainReader = MainController.getReaders();
         /*if(mainReader != null){

@@ -43,7 +43,7 @@
                 
                 <VBox GridPane.columnIndex="0" GridPane.rowIndex="0" alignment="CENTER">
                     <Label text="Nombre:" styleClass="info-label" />
-                    <Label fx:id="nameLabel" text="---" styleClass="info-value" />
+                    <Label fx:id="nameLabel" styleClass="info-value" />
                 </VBox>
                 <VBox GridPane.columnIndex="1" GridPane.rowIndex="0" alignment="CENTER">
                     <Label text="Sucursal:" styleClass="info-label" />

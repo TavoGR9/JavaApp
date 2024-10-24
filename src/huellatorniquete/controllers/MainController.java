@@ -89,7 +89,7 @@ public class MainController {
     private VBox paneleft;
 
     @FXML
-    private void initialize() {
+    private void initialize() { 
         buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (!newValue.matches("\\d*")) {
                 buscarTextField.setText(newValue.replaceAll("[^\\d]", ""));
@@ -136,16 +136,17 @@ public class MainController {
         
     }
     
+    
     /*private void getPort() {
         SerialPort[] ports = SerialPort.getCommPorts();
-    for (SerialPort port : ports) {
-    System.out.println("names ports: " + port.getDescriptivePortName());
-    if (port.getDescriptivePortName().contains("USB-SERIAL")) {
-        seleccionado = port;
-        System.out.println("seleccionado puerto: "+seleccionado);
-        break;  // Detenemos el ciclo si ya encontramos el puerto
-    }
-}
+        for (SerialPort port : ports) {
+            System.out.println("names ports: " + port.getDescriptivePortName());
+            if (port.getDescriptivePortName().contains("USB-SERIAL")) {
+                seleccionado = port;
+                System.out.println("seleccionado puerto: "+seleccionado);
+                break;  // Detenemos el ciclo si ya encontramos el puerto
+            }
+        }
     }*/
     
     private void getPort() {
@@ -237,9 +238,11 @@ public class MainController {
                 nameLabel.setText("No encontrado");
                 branchLabel.setText("No encontrado");
                 membershipLabel.setText("No encontrado");
-                    durationLabel.setText("No encontrado");
-                    startDateLabel.setText("No encontrado");
-                    endDateLabel.setText("No encontrado");
+                durationLabel.setText("No encontrado");
+                startDateLabel.setText("No encontrado");
+                endDateLabel.setText("No encontrado");
+                membershipStatusLabel.setText("Sin Membresia");
+                paneleft.setStyle("-fx-background-color: #E1E1E1;");
             }
         } else {
             System.out.println("La lista de usuarios está vacía");
@@ -390,6 +393,7 @@ public class MainController {
 
         Thread.sleep(100);  // Pequeña pausa para asegurar que el dato se envíe completamente
         puerto.flushIOBuffers();  // Correcto
+
     } catch (Exception e) {
         System.out.println("Error al enviar el dato: " + e.getMessage());
         e.printStackTrace();
@@ -546,28 +550,10 @@ public class MainController {
                                                     System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombre());
                                                     huellaEncontrada = true;
                                                     
-                                                    // Primero actualizamos el puerto
-                                                    Platform.runLater(() -> {
-                                                        try {
-                                                            getPort(); // Actualiza seleccionado
-                                                            if (seleccionado != null) {
-                                                                if (user.getStatus().equalsIgnoreCase("Activo")) {
-                                                                    // Ahora es seguro usar seleccionado
-                                                                    enviarSeñalApertura(seleccionado.getSystemPortName());
-                                                                    enviarDato(seleccionado, 1);
-                                                                } else {
-                                                                    System.out.println("Usuario desactivado");
-                                                                }
-                                                            } else {
-                                                                System.out.println("El puerto seleccionado es nulo.");
-                                                            }
-                                                        } catch (Exception e) {
-                                                            System.err.println("Error al procesar puerto: " + e.getMessage());
-                                                            e.printStackTrace();
-                                                        }
-                                                    });
+                                                    actualizarDatosUsuario(user);
                                                     
-                                                    Thread.sleep(2000);
+                                                    //Thread.sleep(2000);
+
                                                     break;
                                                 }
                                             } catch (UareUException e) {
@@ -599,14 +585,86 @@ public class MainController {
                 return null;
             }
         };
-
+        
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
     }
     
     
+    
+    // Método para actualizar los datos del usuario y gestionar el puerto
+    private void actualizarDatosUsuario(User user) {
+        Platform.runLater(() -> {
+        try {
+            System.out.println("Actualizando datos del usuario en el hilo de JavaFX.");
+            getPort(); // Actualiza el puerto seleccionado
 
+            if (seleccionado != null && user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() >= 10) {
+                System.out.println("Nombre del usuario: " + user.getNombre());
+                System.out.println("Membresia: " + user.getMembresia());
+                enviarSeñalApertura(seleccionado.getSystemPortName());
+                enviarDato(seleccionado, 1);
+
+                // Actualiza los labels con la información del usuario
+                nameLabel.setText(user.getNombre());
+                branchLabel.setText(user.getSucursal());
+                membershipLabel.setText(user.getMembresia());
+                durationLabel.setText(user.getDuracion().toString());
+                startDateLabel.setText(user.getFechaInicio());
+                endDateLabel.setText(user.getFechaFin());
+                membershipStatusLabel.setText("Membresía Activa");
+
+                // Cambia el color del panel si la membresía es válida
+                paneleft.setStyle("-fx-background-color: #98ff96;");
+                mediaPlayerSuccess.stop();
+                mediaPlayerSuccess.seek(Duration.ZERO);
+                mediaPlayerSuccess.play();
+            } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
+                mediaPlayerSuccess.stop();
+                mediaPlayerSuccess.seek(Duration.ZERO);
+                mediaPlayerSuccess.play();                        
+                membershipStatusLabel.setText("Activo - Hoy finaliza la membresia");
+                paneleft.setStyle("-fx-background-color: yellow;");
+                enviarSeñalApertura(seleccionado.getSystemPortName()); // Aquí envías la señal
+                enviarDato(seleccionado,1);
+                
+                // Actualiza los labels con la información del usuario
+                nameLabel.setText(user.getNombre());
+                branchLabel.setText(user.getSucursal());
+                membershipLabel.setText(user.getMembresia());
+                durationLabel.setText(user.getDuracion().toString());
+                startDateLabel.setText(user.getFechaInicio());
+                endDateLabel.setText(user.getFechaFin());
+                membershipStatusLabel.setText("Visita");
+            } else {
+                System.out.println("Usuario no activo o puerto no disponible.");
+                membershipStatusLabel.setText("Usuario desactivado");
+                paneleft.setStyle("-fx-background-color: red;");
+                mediaPlayerError.stop();
+                mediaPlayerError.seek(Duration.ZERO);
+                mediaPlayerError.play();
+                
+                // Actualiza los labels con la información del usuario
+                nameLabel.setText(user.getNombre());
+                branchLabel.setText(user.getSucursal());
+                membershipLabel.setText(user.getMembresia());
+                durationLabel.setText(user.getDuracion().toString());
+                startDateLabel.setText(user.getFechaInicio());
+                endDateLabel.setText(user.getFechaFin());
+                membershipStatusLabel.setText("Sin Membresía");
+            }
+        } catch (Exception e) {
+            System.err.println("Error al actualizar datos del usuario: " + e.getMessage());
+            e.printStackTrace();
+        }
+        });
+    }
+    
+    
+
+    
+    
     public static Fmd capturarHuella(Reader reader) {
         try {
             Reader.CaptureResult captureResult = reader.Capture(
