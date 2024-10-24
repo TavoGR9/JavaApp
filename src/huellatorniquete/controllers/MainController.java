@@ -34,6 +34,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
@@ -54,6 +57,7 @@ public class MainController {
         
         private MediaPlayer mediaPlayerSuccess;
         private MediaPlayer mediaPlayerError;
+        private String idSucursal = "";
     
     @FXML
     private Label labelMotivacion;
@@ -87,9 +91,15 @@ public class MainController {
     
     @FXML
     private VBox paneleft;
+    
+    @FXML
+    private ImageView userPhotoImageView;
 
     @FXML
     private void initialize() { 
+        
+        
+        
         buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (!newValue.matches("\\d*")) {
                 buscarTextField.setText(newValue.replaceAll("[^\\d]", ""));
@@ -119,35 +129,18 @@ public class MainController {
     mediaPlayerError = new MediaPlayer(soundError);
     
     
-    
-    
     System.out.println("Ruta de éxito: " + Paths.get(audioFilePath).toUri().toString());
     System.out.println("Ruta de error: " + Paths.get(audioFilePath2).toUri().toString());
-        
- // Verificar puertos COM disponibles y usar el primero disponible
-    /*SerialPort[] ports = SerialPort.getCommPorts();
-    if (ports.length > 0) {
-        String firstPortName = ports[0].getSystemPortName();
-        System.out.println("Primer puerto COM disponible: " + firstPortName);
-        enviarSeñalApertura(firstPortName);  // Enviar señal de apertura al primer puerto encontrado
-    } else {
-        System.out.println("No se encontraron puertos COM disponibles.");
-    }*/
-        
-    }
     
-    
-    /*private void getPort() {
-        SerialPort[] ports = SerialPort.getCommPorts();
-        for (SerialPort port : ports) {
-            System.out.println("names ports: " + port.getDescriptivePortName());
-            if (port.getDescriptivePortName().contains("USB-SERIAL")) {
-                seleccionado = port;
-                System.out.println("seleccionado puerto: "+seleccionado);
-                break;  // Detenemos el ciclo si ya encontramos el puerto
-            }
+    idSucursal = HuellaTorniquete.getIdSucursal();
+        System.out.println("Obtenemos idSucursal: "+idSucursal);
+        
+        buscarTextField.setOnKeyPressed(event -> {
+        if (event.getCode() == KeyCode.ENTER) {
+            getIdToSearch();
         }
-    }*/
+    });
+}
     
     private void getPort() {
         SerialPort[] ports = SerialPort.getCommPorts();
@@ -193,10 +186,17 @@ public class MainController {
             for (User user : userData) {
                 if (user.getEstafeta().equals(numero)) {
                     System.out.println("Usuario encontrado: " + user);
+                    Image image = new Image("/huellatorniquete/images/usuario.jpg");
+                    userPhotoImageView.setImage(image);
                     nameLabel.setText(user.getNombre());
                     branchLabel.setText(user.getSucursal());
                     membershipLabel.setText(user.getMembresia());
+                    //durationLabel.setText(user.getDuracion().toString());
+                    if (user.getDuracion() != null) {
                     durationLabel.setText(user.getDuracion().toString());
+                } else {
+                    durationLabel.setText("0");
+                }
                     startDateLabel.setText(user.getFechaInicio());
                     endDateLabel.setText(user.getFechaFin());
                     encontrado = true;
@@ -205,6 +205,7 @@ public class MainController {
                         mediaPlayerSuccess.seek(Duration.ZERO);  // Reiniciar al inicio
                         mediaPlayerSuccess.play();
                         membershipStatusLabel.setText("Membresia Activa");
+                        ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
                         //enviarSeñalApertura("COM7");
                         //enviarATodasLosPuertos();
                         if (seleccionado != null) {
@@ -223,7 +224,8 @@ public class MainController {
                         paneleft.setStyle("-fx-background-color: yellow;");
                         enviarSeñalApertura(seleccionado.getSystemPortName()); // Aquí envías la señal
                         enviarDato(seleccionado,1);
-                    } else if(user.getStatus().equalsIgnoreCase("Desactivado")){
+                        ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                    } else if(user.getStatus().equalsIgnoreCase("Desactivado") || user.getDuracion() == null){
                         mediaPlayerError.stop();
                         mediaPlayerError.seek(Duration.ZERO);
                         mediaPlayerError.play();
@@ -249,58 +251,6 @@ public class MainController {
         }
     }
     
-   /* public static void enviarSeñalApertura(String portName) {
-        System.out.println("Intentando abrir el puerto: " + portName);
-        SerialPort port = SerialPort.getCommPort(portName);
-        
-        if (port.openPort()) {
-            System.out.println("Puerto " + portName + " abierto exitosamente");
-            try {
-                port.setComPortParameters(9600, 8, 1, SerialPort.NO_PARITY);
-                port.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 0);
-
-                byte[] signal = {0x01};  // Enviando byte 0x01 en lugar de "1"
-                int bytesWritten = 0;
-                int maxRetries = 3;
-                int retries = 0;
-
-                while (bytesWritten < signal.length && retries < maxRetries) {
-                    bytesWritten += port.writeBytes(signal, signal.length - bytesWritten);
-                    retries++;
-                    if (bytesWritten < signal.length) {
-                        System.out.println("Reintento " + retries + " de envío de señal");
-                        Thread.sleep(50);  // Pequeña pausa antes de reintentar
-                    }
-                }
-
-                if (bytesWritten == signal.length) {
-                    System.out.println("Señal enviada exitosamente al puerto " + portName);
-                } else {
-                    System.out.println("Error al enviar la señal al puerto " + portName + ". Bytes escritos: " + bytesWritten);
-                }
-
-                Thread.sleep(100);  // Espera 100ms para asegurar que la señal se envíe completamente
-                port.flushIOBuffers();
-            } catch (Exception e) {
-                System.out.println("Error en la comunicación serial con el puerto " + portName + ": " + e.getMessage());
-                e.printStackTrace();
-            } finally {
-                port.closePort();
-                System.out.println("Puerto " + portName + " cerrado");
-            }
-        } else {
-            System.out.println("No se pudo abrir el puerto " + portName);
-        }
-    }*/
-
-   /* public static void enviarATodasLosPuertos() {
-        SerialPort[] ports = SerialPort.getCommPorts();
-        System.out.println("Puertos disponibles: " + ports.length);
-        for (SerialPort port : ports) {
-            System.out.println("Intentando enviar señal al puerto: " + port.getSystemPortName());
-            enviarSeñalApertura(port.getSystemPortName());
-        }
-    }*/
     
      public static void enviarSeñalApertura(String portName) {
         SerialPort port = SerialPort.getCommPort(portName);
@@ -326,12 +276,7 @@ public class MainController {
         }
     }
 
-    /*public static void enviarATodasLosPuertos() {
-        SerialPort[] ports = SerialPort.getCommPorts();
-        for (SerialPort port : ports) {
-            enviarSeñalApertura(port.getSystemPortName());
-        }
-    }*/
+ 
     public void enviarATodasLosPuertos() {
     Task<Void> task = new Task<Void>() {
         @Override
@@ -350,22 +295,6 @@ public class MainController {
     new Thread(task).start();
 }
     
-    //nuevo metodo
-    /*public static void enviarDato(SerialPort puerto, String dato) {
-    if (puerto != null && puerto.openPort()) {
-        try {
-            byte[] data = dato.getBytes();  // Convertimos el dato a bytes
-            puerto.writeBytes(data, data.length);  // Enviamos los datos al puerto
-            System.out.println("Dato enviado: " + dato);
-        } catch (Exception e) {
-            System.out.println("Error al enviar el dato: " + e.getMessage());
-        } finally {
-            puerto.closePort();  // Cerramos el puerto después de enviar el dato
-        }
-    } else {
-        System.out.println("El puerto no se pudo abrir o es nulo.");
-    }
-}*/
     
     public static void enviarDato(SerialPort puerto, int dato) {
     if (puerto == null) {
@@ -432,95 +361,7 @@ public class MainController {
     }
     return reader;
 }
-    
-   
-     /*public void compareFingerprint(List<User> userData) {
-        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-            @Override
-            protected Void doInBackground() throws Exception {
-                try {
-                    ReaderCollection readers = UareUGlobal.GetReaderCollection();
-                    readers.GetReaders();
-                    if (readers.size() > 0) {
-                        Reader reader = readers.get(0);
-                        try {
-                            reader.Open(Reader.Priority.EXCLUSIVE);
-                            Fmd capturedFmd = capturarHuella(reader);
-                            System.out.println("capturada: "+capturedFmd);
-                            
-                            if (capturedFmd != null) {
-                                boolean huellaEncontrada = false;
-                                for (User user : userData) {
-                                    //Fmd storedFmd = user.getHuellaFmd();
-                                    //System.out.println("se comparara con: "+storedFmd);
-                                    System.out.println("MIRA LOS QUE SE RECORREN:" +user.getHuellaFmd());
-
-                                    if (user.getHuellaFmd() != null) {
-                                        try {
-                                            int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
-                                            //int targetFalsematchRate = Engine.PROBABILITY_ONE / 100000; // Target rate is 0.00001
-                                            int threshold = 100000; // Ajusta este valor según tus necesidades
-
-                                            if (score < threshold) {
-                                                //System.out.println("comparando: capturada: "+capturedFmd + "se compara con: "+storedFmd);
-                                                System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombre());
-                                                huellaEncontrada = true;
-                                                System.out.println("huella encntrada: " + huellaEncontrada);
-                                                
-                                                getPort();
-        
-                                                
-                                                if (seleccionado != null) {
-                                                    if (user.getStatus().equalsIgnoreCase("Activo")){
-                                                       enviarSeñalApertura(seleccionado.getSystemPortName());
-                                                        enviarDato(seleccionado, 1);
-                                                        System.out.println("Usuario encontrado: " + user);
-                                                        System.out.println("Valor de Nombre: " + user.getNombre());
-                                                        System.out.println("Actualizando la interfaz con los datos del usuario...");
-                                                        nameLabel.setText(user.getNombre()); 
-                                                    } else {
-                                                        System.out.println("Usuario desactivado");
-                                                    }
-                                                     
-                                                } else {
-                                                    System.out.println("El puerto seleccionado es nulo.");
-                                                    System.out.println("Valor de seleccionado: " + seleccionado);
-                                                }
-                                                break;
-                                            }
-                                        } catch (UareUException e) {
-                                            System.err.println("Error al comparar huellas: " + e.getMessage());
-                                        }
-                                    }
-                                }
-                                if (!huellaEncontrada) {
-                                    System.out.println("No se encontró ninguna huella coincidente.");
-                                   
-                                    //capturarHuella(reader);
-                                    compareFingerprint(userData);
-                                }
-                            } else {
-                                System.out.println("No se pudo capturar la huella.");
-                            }
-                        } finally {
-                            try {
-                                reader.Close();
-                            } catch (UareUException e) {
-                                System.err.println("Error al cerrar el lector: " + e.getMessage());
-                            }
-                        }
-                    } else {
-                        System.out.println("No se encontraron lectores de huellas dactilares.");
-                    }
-                } catch (UareUException e) {
-                    System.err.println("Error: " + e.getMessage());
-                }
-                return null;
-            }
-        };
-        worker.execute();
-    }*/
-    
+  
     
     public void compareFingerprint(List<User> userData) {
         Task<Void> task = new Task<Void>() {
@@ -563,6 +404,16 @@ public class MainController {
                                     }
                                     if (!huellaEncontrada) {
                                         System.out.println("No se encontró ninguna huella coincidente.");
+                                        Platform.runLater(() -> {
+                                            nameLabel.setText("No encontrado");
+                                            branchLabel.setText("No encontrado");
+                                            membershipLabel.setText("No encontrado");
+                                            durationLabel.setText("No encontrado");
+                                            startDateLabel.setText("No encontrado");
+                                            endDateLabel.setText("No encontrado");
+                                            membershipStatusLabel.setText("Sin Membresia");
+                                            paneleft.setStyle("-fx-background-color: #E1E1E1;");
+                                        });
                                         Thread.sleep(1000);
                                     }
                                 } else {
@@ -607,6 +458,9 @@ public class MainController {
                 enviarDato(seleccionado, 1);
 
                 // Actualiza los labels con la información del usuario
+                buscarTextField.setText("");
+                Image image = new Image("/huellatorniquete/images/usuario.jpg");
+                userPhotoImageView.setImage(image);
                 nameLabel.setText(user.getNombre());
                 branchLabel.setText(user.getSucursal());
                 membershipLabel.setText(user.getMembresia());
@@ -620,6 +474,7 @@ public class MainController {
                 mediaPlayerSuccess.stop();
                 mediaPlayerSuccess.seek(Duration.ZERO);
                 mediaPlayerSuccess.play();
+                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
             } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
                 mediaPlayerSuccess.stop();
                 mediaPlayerSuccess.seek(Duration.ZERO);
@@ -637,6 +492,7 @@ public class MainController {
                 startDateLabel.setText(user.getFechaInicio());
                 endDateLabel.setText(user.getFechaFin());
                 membershipStatusLabel.setText("Visita");
+                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
             } else {
                 System.out.println("Usuario no activo o puerto no disponible.");
                 membershipStatusLabel.setText("Usuario desactivado");
@@ -662,9 +518,6 @@ public class MainController {
     }
     
     
-
-    
-    
     public static Fmd capturarHuella(Reader reader) {
         try {
             Reader.CaptureResult captureResult = reader.Capture(
@@ -685,77 +538,6 @@ public class MainController {
         return null;
     }
     
-    
-    //METODO OKE OKEY OKEY
-  /*  public static Fmd capturarHuella(Reader reader) {
-    System.out.println("ESPERANDO LECTURA JEJEJE");
-
-    SwingWorker<Fmd, Void> worker = new SwingWorker<Fmd, Void>() {
-        @Override
-        protected Fmd doInBackground() throws Exception {
-            Reader.CaptureResult captureResult = null;
-            try {
-                captureResult = reader.Capture(
-                    Fid.Format.ANSI_381_2004,
-                    Reader.ImageProcessing.IMG_PROC_DEFAULT,
-                    500,
-                    -1
-                );
-            } catch (UareUException e) {
-                e.printStackTrace();
-                return null;
-            }
-
-            // Verificar si la captura fue exitosa y la calidad es buena
-            if (captureResult != null && captureResult.quality == Reader.CaptureQuality.GOOD) {
-                try {
-                    // Crear un FMD a partir de la huella capturada
-                    Fmd fmd = UareUGlobal.GetEngine().CreateFmd(
-                        captureResult.image,
-                        Fmd.Format.ANSI_378_2004
-                    );
-
-                    System.out.println("Captura de huella dactilar exitosa!");
-                    System.out.println("FMD capturado: " + fmd);
-                    return fmd;
-
-                } catch (Exception ex) {
-                    System.out.println("Error al crear el FMD: " + ex.getMessage());
-                    ex.printStackTrace();
-                    return null;
-                }
-            } else {
-                System.out.println("La captura de la huella dactilar no fue exitosa. Calidad: " + (captureResult != null ? captureResult.quality : "null"));
-                return null;
-            }
-        }
-
-        @Override
-        protected void done() {
-            try {
-                Fmd fmd = null;
-                try {
-                    fmd = get();
-                } catch (ExecutionException ex) {
-                    Logger.getLogger(MainController.class.getName()).log(Level.SEVERE, null, ex);
-                }
-
-                if (fmd != null) {
-                    System.out.println("Captura completada con éxito.");
-                } else {
-                    System.out.println("No se pudo capturar la huella.");
-                }
-            } catch (InterruptedException ex) {
-                ex.printStackTrace();
-            }
-        }
-    };
-
-    worker.execute();
-    return null;
-}*/
-    
-   
     public static void convertHuellas(List<User> dataUser) {
     if (!dataUser.isEmpty()) {
         for (User u : dataUser) {
@@ -792,6 +574,23 @@ public class MainController {
         } catch (Exception e) {
             e.printStackTrace();
             return null; // En caso de error, retornar null
+        }
+    }
+    
+    
+    
+    //metodo actualizar
+    
+    public void ActualizarLocalDatabase(){
+        System.out.println("tamaño actual: "+userData.size());
+        System.out.println("Entro a actualizar");
+        //se obtiene nuevamente la lista del servidor, se hace la peticion
+        userData = ApiService.getDataClient(idSucursal);
+        
+        if(!userData.isEmpty()){
+            System.out.println("la lista no esta vacia, se actualizo local");
+            DataInserter.insertData(userData);
+            System.out.println("tamaño despues de actualizar: "+userData.size());
         }
     }
     

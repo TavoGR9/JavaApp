@@ -23,13 +23,13 @@
             <HBox spacing="10" alignment="CENTER">
                 <TextField fx:id="buscarTextField" promptText="Buscar" HBox.hgrow="ALWAYS" />
                 <Button text="Buscar" styleClass="search-button" onAction="#getIdToSearch"/>
-                <Button text="Actualizar" styleClass="update-button" />
+                <Button text="Actualizar" styleClass="update-button" onAction="#ActualizarLocalDatabase"/>
             </HBox>
             <Region VBox.vgrow="ALWAYS" minHeight="20" maxHeight="50" />
             <ImageView fx:id="userPhotoImageView" fitWidth="150" fitHeight="150" preserveRatio="true">
-                <Image url="/huellatorniquete/images/logo.jpeg" />
+                <!--<Image url="/huellatorniquete/images/usuario.jpg" />-->
             </ImageView>
-            <Label fx:id="idLabel" text="1" styleClass="id-label" />
+           <!-- <Label fx:id="idLabel" text="1" styleClass="id-label" />-->
             <GridPane vgap="20" hgap="30" alignment="CENTER">
                 <columnConstraints>
                     <ColumnConstraints percentWidth="50" />
@@ -43,7 +43,7 @@
                 
                 <VBox GridPane.columnIndex="0" GridPane.rowIndex="0" alignment="CENTER">
                     <Label text="Nombre:" styleClass="info-label" />
-                    <Label fx:id="nameLabel" styleClass="info-value" />
+                    <Label fx:id="nameLabel" text="---" styleClass="info-value" />
                 </VBox>
                 <VBox GridPane.columnIndex="1" GridPane.rowIndex="0" alignment="CENTER">
                     <Label text="Sucursal:" styleClass="info-label" />

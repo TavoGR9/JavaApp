@@ -127,5 +127,27 @@ public class ApiService {
         return List.of(); // Retornar una lista vacía en caso de excepción
     }
 }
+    
+    public static void InsertarAsistencia(String estafeta, String idGym){
+        try {
+        // Crear el cliente HTTP
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta+"&idGymnasio="+idGym))
+                .build();
+
+        System.out.println("URL SERVICE: " + request);
+
+        // Hacer la solicitud y obtener la respuesta
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // Verificar si la respuesta fue exitosa (código 200)
+        if (response.statusCode() == 200) {
+            System.out.println("solicitud correcta: "+response.body());
+        }
+    } catch (IOException | InterruptedException e) {
+        System.out.println("Error durante la solicitud: " + e.getMessage());
+    }
+   }
 
 }

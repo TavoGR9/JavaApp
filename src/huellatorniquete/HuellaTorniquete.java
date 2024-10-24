@@ -124,6 +124,10 @@ public class HuellaTorniquete extends Application {
             // Platform.runLater(() -> showErrorDialog("Error al obtener las huellas"));
         } 
     }
+    
+    public static String getIdSucursal(){
+        return idSucursal;
+    }
 
     
     // Método para mostrar un diálogo de error (implementa según tus necesidades)
