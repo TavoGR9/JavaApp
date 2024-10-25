@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 //import java.time.Duration;
 import java.util.Base64;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -205,7 +206,9 @@ public class MainController {
                         mediaPlayerSuccess.seek(Duration.ZERO);  // Reiniciar al inicio
                         mediaPlayerSuccess.play();
                         membershipStatusLabel.setText("Membresia Activa");
-                        ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                        CompletableFuture.runAsync(() -> {
+                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                });
                         //enviarSeñalApertura("COM7");
                         //enviarATodasLosPuertos();
                         if (seleccionado != null) {
@@ -224,7 +227,9 @@ public class MainController {
                         paneleft.setStyle("-fx-background-color: yellow;");
                         enviarSeñalApertura(seleccionado.getSystemPortName()); // Aquí envías la señal
                         enviarDato(seleccionado,1);
-                        ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                        CompletableFuture.runAsync(() -> {
+                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                });
                     } else if(user.getStatus().equalsIgnoreCase("Desactivado") || user.getDuracion() == null){
                         mediaPlayerError.stop();
                         mediaPlayerError.seek(Duration.ZERO);
@@ -445,7 +450,7 @@ public class MainController {
     
     
     // Método para actualizar los datos del usuario y gestionar el puerto
-    private void actualizarDatosUsuario(User user) {
+    /*private void actualizarDatosUsuario(User user) {
         Platform.runLater(() -> {
         try {
             System.out.println("Actualizando datos del usuario en el hilo de JavaFX.");
@@ -474,7 +479,7 @@ public class MainController {
                 mediaPlayerSuccess.stop();
                 mediaPlayerSuccess.seek(Duration.ZERO);
                 mediaPlayerSuccess.play();
-                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                ApiService.ejecutarServicioInsertarAsistencia(user.getEstafeta(), idSucursal);
             } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
                 mediaPlayerSuccess.stop();
                 mediaPlayerSuccess.seek(Duration.ZERO);
@@ -492,7 +497,7 @@ public class MainController {
                 startDateLabel.setText(user.getFechaInicio());
                 endDateLabel.setText(user.getFechaFin());
                 membershipStatusLabel.setText("Visita");
-                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                ApiService.ejecutarServicioInsertarAsistencia(user.getEstafeta(), idSucursal);
             } else {
                 System.out.println("Usuario no activo o puerto no disponible.");
                 membershipStatusLabel.setText("Usuario desactivado");
@@ -515,8 +520,87 @@ public class MainController {
             e.printStackTrace();
         }
         });
+    }*/
+    
+    private void actualizarDatosUsuario(User user) {
+    Platform.runLater(() -> {
+        try {
+            System.out.println("Actualizando datos del usuario en el hilo de JavaFX.");
+            getPort();
+
+            if (seleccionado != null && user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() >= 10) {
+                // Actualizar UI primero
+                actualizarUI(user, true, "#98ff96");
+                reproducirSonidoExito();
+                enviarSeñalApertura(seleccionado.getSystemPortName());
+                enviarDato(seleccionado, 1);
+
+                // Ejecutar la llamada al servicio en un hilo separado
+                CompletableFuture.runAsync(() -> {
+                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                });
+
+            } else if(user.getStatus().equalsIgnoreCase("Activo") && user.getDuracion() == 1) {
+                // Actualizar UI primero
+                actualizarUI(user, true, "yellow");
+                reproducirSonidoExito();
+                enviarSeñalApertura(seleccionado.getSystemPortName());
+                enviarDato(seleccionado, 1);
+
+                // Ejecutar la llamada al servicio en un hilo separado
+                CompletableFuture.runAsync(() -> {
+                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                });
+
+            } else {
+                // Actualizar UI para usuario no activo
+                actualizarUI(user, false, "red");
+                reproducirSonidoError();
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error al actualizar datos del usuario: " + e.getMessage());
+            e.printStackTrace();
+        }
+    });
+}
+    
+    private void actualizarUI(User user, boolean activo, String colorPanel) {
+    buscarTextField.setText("");
+    Image image = new Image("/huellatorniquete/images/usuario.jpg");
+    userPhotoImageView.setImage(image);
+    nameLabel.setText(user.getNombre());
+    branchLabel.setText(user.getSucursal());
+    membershipLabel.setText(user.getMembresia());
+    durationLabel.setText(user.getDuracion().toString());
+    startDateLabel.setText(user.getFechaInicio());
+    endDateLabel.setText(user.getFechaFin());
+    
+    if (activo) {
+        membershipStatusLabel.setText(user.getDuracion() == 1 ? "Activo - Hoy finaliza la membresia" : "Membresía Activa");
+    } else {
+        membershipStatusLabel.setText("Sin Membresía");
     }
     
+    paneleft.setStyle("-fx-background-color: " + colorPanel + ";");
+}
+    
+    private void reproducirSonidoExito() {
+    mediaPlayerSuccess.stop();
+    mediaPlayerSuccess.seek(Duration.ZERO);
+    mediaPlayerSuccess.play();
+}
+
+private void reproducirSonidoError() {
+    mediaPlayerError.stop();
+    mediaPlayerError.seek(Duration.ZERO);
+    mediaPlayerError.play();
+}
+
+
+
+
+
     
     public static Fmd capturarHuella(Reader reader) {
         try {
