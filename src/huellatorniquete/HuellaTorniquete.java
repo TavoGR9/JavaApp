@@ -21,7 +21,7 @@ import java.util.logging.Logger;
 public class HuellaTorniquete extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(HuellaTorniquete.class.getName());
-    private static String idSucursal = "4";
+    private static String idSucursal = "";
     private List<User> userData = new ArrayList<>();
 
     @Override
@@ -32,9 +32,6 @@ public class HuellaTorniquete extends Application {
         FXMLLoader loader = new FXMLLoader(url);
         Parent root = loader.load();
         MainController mc = loader.getController();
-
-        //Parent root = FXMLLoader.load(getClass().getResource("/HuellaTorniquete/views/mainview.fxml"));
-
         
         Scene scene = new Scene(root);
         scene.getStylesheets().add(getClass().getResource("/HuellaTorniquete/css/style.css").toExternalForm());
@@ -44,28 +41,16 @@ public class HuellaTorniquete extends Application {
         primaryStage.setMaximized(true);
         primaryStage.show();
 
-        // Mover la lógica de consumo de API aquí
-        //consumeApiService();
         
         userData = DataInserter.geth2InfoUser();
-        /*System.out.println("Lista de usuarios cargada desde main: " + userData);
-        System.out.println("Tamaño antes de convertirla a FMD main: "+userData.size());*/
+
         
         MainController.convertHuellas(userData);
         System.out.println("Lista con fmd desde main: "+userData);
         System.out.println("Tamaño de lista de FMD desde main: "+userData.size());
         
-        
-            //MainController mc = new MainController();
 
         mc.compareFingerprint(userData);
-        /*MainController controller = new MainController();
-        controller.getIdToSearch(userData);*/
-        
-        //Reader mainReader = MainController.getReaders();
-        /*if(mainReader != null){
-            //MainController.capturarHuella(mainReader);
-        }*/
     }
 
     public static void main(String[] args) {
@@ -92,21 +77,6 @@ public class HuellaTorniquete extends Application {
             }
         }
     }
-
-    /*private void consumeApiService() {
-        try {
-            List<HuellaResponse> huellas = ApiService.getHuellas(idSucursal);
-            if (!huellas.isEmpty()) {
-                LOGGER.info("Huellas: " + huellas);
-            } else {
-                LOGGER.info("No se encontraron huellas");
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error al obtener las huellas", e);
-            // Aquí podrías actualizar la UI para mostrar el error, por ejemplo:
-            // Platform.runLater(() -> showErrorDialog("Error al obtener las huellas"));
-        }
-    }*/
     
     private void consumegetDataUser(){
        try {
@@ -120,20 +90,11 @@ public class HuellaTorniquete extends Application {
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error al obtener las huellas", e);
-            // Aquí podrías actualizar la UI para mostrar el error, por ejemplo:
-            // Platform.runLater(() -> showErrorDialog("Error al obtener las huellas"));
         } 
     }
-
     
-    // Método para mostrar un diálogo de error (implementa según tus necesidades)
-    /*
-    private void showErrorDialog(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    public static String getIdSucursal(){
+        return idSucursal;
     }
-    */
+
 }

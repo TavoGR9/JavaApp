@@ -12,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import javafx.concurrent.Task;
 
 public class ApiService {
     private static final String API_URL = "https://olympus.arvispace.com/";
@@ -127,5 +129,51 @@ public class ApiService {
         return List.of(); // Retornar una lista vacía en caso de excepción
     }
 }
+    
+    /*public static void InsertarAsistencia(String estafeta, String idGym){
+        try {
+        // Crear el cliente HTTP
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta+"&idGymnasio="+idGym))
+                .build();
+
+        System.out.println("URL SERVICE: " + request);
+
+        // Hacer la solicitud y obtener la respuesta
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // Verificar si la respuesta fue exitosa (código 200)
+        if (response.statusCode() == 200) {
+            System.out.println("solicitud correcta: "+response.body());
+        }
+    } catch (IOException | InterruptedException e) {
+        System.out.println("Error durante la solicitud: " + e.getMessage());
+    }
+   }*/
+    
+    public static CompletableFuture<Boolean> InsertarAsistencia(String estafeta, String idGym) {
+    return CompletableFuture.supplyAsync(() -> {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta + "&idGymnasio=" + idGym))
+                .build();
+            
+            System.out.println("URL SERVICE: " + request);
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() == 200) {
+                System.out.println("solicitud correcta: " + response.body());
+                return true;
+            }
+            return false;
+        } catch (IOException | InterruptedException e) {
+            System.out.println("Error durante la solicitud: " + e.getMessage());
+            return false;
+        }
+    });
+}
+
 
 }
