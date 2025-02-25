@@ -69,5 +69,9 @@ Click nbfs://nbhost/SystemFileSystem/Templates/Other/CascadeStyleSheet.css to ed
 }
 
 
+.updateregister {
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+}
 
 

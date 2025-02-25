@@ -16,51 +16,18 @@ import java.util.concurrent.CompletableFuture;
 import javafx.concurrent.Task;
 
 public class ApiService {
-    private static final String API_URL = "https://olympus.arvispace.com/";
-
-    // Este método devolverá una lista de objetos HuellaResponse
-   /* public static List<HuellaResponse> getHuellas(String idSucursal) {
-        try {
-            // Crear el cliente HTTP
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?consultaHuellasVD="+idSucursal))
-                    .build();
-
-            // Hacer la solicitud y obtener la respuesta
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            // Verificar si la respuesta fue exitosa (código 200)
-                if (response.statusCode() == 200) {
-                // Deserializar el JSON en una lista de objetos HuellaResponse
-                ObjectMapper objectMapper = new ObjectMapper();
-                List<HuellaResponse> huellasList = objectMapper.readValue(
-                        response.body(), 
-                        new TypeReference<List<HuellaResponse>>() {}
-                );
-                
-                // Serializar la lista de objetos de vuelta a JSON
-                String jsonResult = objectMapper.writeValueAsString(huellasList);
-                System.out.println("Lista serializada a JSON: " + jsonResult);
-
-                return huellasList;
-            } else {
-                System.out.println("Error en la respuesta: " + response.statusCode());
-                return List.of(); // Retornar una lista vacía en caso de error
-            }
-        } catch (IOException | InterruptedException e) {
-            return List.of(); // Retornar una lista vacía en caso de excepción
-        }
-    }*/
     
-    
+    //private static final String API_URL = "https://olympus.arvispace.com/";
+    private static final String API_URL = "http://localhost/serviciosGym/";
+
     //este metodo retorna una frase diferente
     public static String getFrases() {
         try {
             // Crear el cliente HTTP
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(API_URL + "olimpusGym/conf/frases.php"))
+                    .uri(URI.create(API_URL + "frases.php"))
+                    //.uri(URI.create(API_URL + "olimpusGym/conf/frases.php"))
                     .build();
 
             // Hacer la solicitud y obtener la respuesta
@@ -90,7 +57,8 @@ public class ApiService {
         // Crear el cliente HTTP
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?consultarCliente=" + IdSucursal))
+                //.uri(URI.create(API_URL + "olimpusGym/conf/Usuario.php?getusersbygym=" + IdSucursal))
+                .uri(URI.create(API_URL + "Usuario.php?getusersbygym=" + IdSucursal))
                 .build();
 
         System.out.println("URL SERVICE: " + request);
@@ -130,34 +98,15 @@ public class ApiService {
     }
 }
     
-    /*public static void InsertarAsistencia(String estafeta, String idGym){
-        try {
-        // Crear el cliente HTTP
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta+"&idGymnasio="+idGym))
-                .build();
-
-        System.out.println("URL SERVICE: " + request);
-
-        // Hacer la solicitud y obtener la respuesta
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        // Verificar si la respuesta fue exitosa (código 200)
-        if (response.statusCode() == 200) {
-            System.out.println("solicitud correcta: "+response.body());
-        }
-    } catch (IOException | InterruptedException e) {
-        System.out.println("Error durante la solicitud: " + e.getMessage());
-    }
-   }*/
     
     public static CompletableFuture<Boolean> InsertarAsistencia(String estafeta, String idGym) {
     return CompletableFuture.supplyAsync(() -> {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta + "&idGymnasio=" + idGym))
+                  
+                //.uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta + "&idGymnasio=" + idGym))
+                .uri(URI.create(API_URL + "huella.php?obtenerIdClienteHuella=" + estafeta + "&idGymnasio=" + idGym))
                 .build();
             
             System.out.println("URL SERVICE: " + request);
