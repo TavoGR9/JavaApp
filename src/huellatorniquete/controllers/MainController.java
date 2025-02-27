@@ -58,6 +58,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXMLLoader;
@@ -123,11 +124,13 @@ public class MainController {
         
         
         
+        
         buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (!newValue.matches("\\d*")) {
                 buscarTextField.setText(newValue.replaceAll("[^\\d]", ""));
             }
         });
+        
         
         getFrase();
         labelMotivacion.setText(frase);
@@ -339,85 +342,6 @@ private static String bytesToHex(byte[] bytes) {
         processUserById(numero);
     }
     
-    
-    /*
-    // Método para detener el servicio web
-    private void stopWebService() {
-        // Detener el servidor de Spark (servicio web)
-        try {
-            stop(); // Este método detendrá el servidor Spark
-            System.out.println("Servidor detenido en el puerto 4567.");
-        } catch (Exception e) {
-            System.err.println("Error al detener el servicio web: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    */
-    
-    
-    /*
-   private void startWebService() {
-    if (!serviceStarted) {
-        try {
-            port(4567); // Iniciar en puerto 4567
-            
-            before((request, response) -> {
-                response.header("Access-Control-Allow-Origin", "*");
-                response.header("Access-Control-Allow-Methods", "GET");
-                System.out.println("Recibida petición: " + request.url());
-            });
-
-            get("/processUser/:id", (req, res) -> {
-                String id = req.params(":id");
-                res.type("application/json");
-
-                if (id == null || id.isEmpty()) {
-                    res.status(400);
-                    return "{\"status\": \"ID inválido\"}";
-                }
-
-                boolean result = processUserById(id);
-                if (result) {
-                    res.status(200);
-                    return "{\"status\": \"Usuario procesado correctamente\"}";
-                } else {
-                    res.status(404);
-                    return "{\"status\": \"Usuario no encontrado\"}";
-                }
-            });
-
-            get("/getDate", (req, res) -> {
-                res.type("application/json");
-                res.status(200);
-                return "{\"fecha\": \"" + LocalDate.now() + "\"}";
-            });
-
-            get("/getLocalIp", (req, res) -> {
-                res.type("application/json");
-                res.status(200);
-                return "{\"ip\": \"" + getLocalIPAddress() + "\"}";
-            });
-
-            get("/test", (req, res) -> {
-                System.out.println("Test endpoint llamado");
-                res.type("application/json");
-                return "{\"status\": \"ok\"}";
-            });
-
-            serviceStarted = true;
-            System.out.println("Servicio web iniciado en puerto 4567");
-
-
-        } catch (Exception e) {
-            System.err.println("Error al iniciar el servicio web: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
-}
-    */
-   
-   
    
    private static String getLocalIPAddress() {
         try {
@@ -448,7 +372,11 @@ private static String bytesToHex(byte[] bytes) {
 }
     
     
+    
+    
+    
     public boolean processUserById(String id) {
+    
     boolean encontrado = false;
     System.out.println("Hola si esta entrando perros");
     System.out.println("El id que pasaron fue: " + id);
@@ -464,40 +392,99 @@ private static String bytesToHex(byte[] bytes) {
         if (user.getEstafeta().equalsIgnoreCase(id)) {
             System.out.println("el usuario es: " + user); 
   
+            int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
+            System.out.println("Estatus actual en BD: " + estatusActual);
+            
+            ///SI EXISTE EN ASISTENCIA
             boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
+            Image image = new Image("/huellatorniquete/images/usuario.jpg");
             
             if (asistenciaExistente) {
-                // Si la asistencia ya existe, mostrar mensaje en UI y cambiar fondo a azul
+            // Si ya tiene asistencia registrada, verificar su estatus actual
+                if (estatusActual == 1) {
+                // Usuario quiere salir, cambiar su estatus a 0 (fuera)
+                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+
                 Platform.runLater(() -> {
+                    userPhotoImageView.setImage(image);
                     nameLabel.setText(user.getNombreCompleto());
                     branchLabel.setText(user.getIdBodega());
                     membershipLabel.setText(user.getTitulo());
                     durationLabel.setText(user.getDuracion().toString());
                     startDateLabel.setText(user.getFechaInicio());
                     endDateLabel.setText(user.getFechaFin());
-                    
+
+                    membershipStatusLabel.setText("Salida registrada");
+                    membershipStatusLabel.setStyle("-fx-text-fill: white;");
+                    paneleft.setStyle("-fx-background-color: #00AAE4;");
+
+                    if(mediaPlayerSuccess != null) {
+                            mediaPlayerSuccess.play();
+                            mediaPlayerSuccess.seek(Duration.ZERO);
+                     }
+
+                    if (seleccionado != null) {
+                        enviarUno(seleccionado, "0"); // Se envía 0 para indicar salida
+                    }
+                });
+            } else {
+                // Usuario quiere ingresar, pero ya usó su membresía
+                Platform.runLater(() -> {
+                    userPhotoImageView.setImage(image);
+                    nameLabel.setText(user.getNombreCompleto());
+                    branchLabel.setText(user.getIdBodega());
+                    membershipLabel.setText(user.getTitulo());
+                    durationLabel.setText(user.getDuracion().toString());
+                    startDateLabel.setText(user.getFechaInicio());
+                    endDateLabel.setText(user.getFechaFin());
+
                     membershipStatusLabel.setText("Membresía ya utilizada");
-                    paneleft.setStyle("-fx-background-color: blue;");
-                    
+                    membershipStatusLabel.setStyle("-fx-text-fill: white;"); // Color rojo para indicar error
+                    paneleft.setStyle("-fx-background-color: #00AAE4;");
+
                     if (mediaPlayerError != null) {
                         mediaPlayerError.play();
                         mediaPlayerError.seek(Duration.ZERO);
                     }
-                    
-                    CompletableFuture.runAsync(() -> {
-                        //ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                        if (seleccionado != null) {
-                            enviarUno(seleccionado, (byte) 0);
-                            System.out.println("CERO ENVIADO");
-                        }
-                        });
-                    
                 });
-                return false; // Salir de la función, no procesar más
-            } 
+            }
+    
+            return false; // Salir de la función, no procesar más
+        }
             
-            if(user.getDuracion() == 1){
-            DataInserter.insertarAsistencia(
+            
+            
+            //////////
+            if(estatusActual == 1){
+                
+                boolean actualizado = DataInserter.cambiarEsatusQR(user.getEstafeta());
+                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                
+                if(actualizado){
+                    Platform.runLater(() ->{
+                        membershipStatusLabel.setText("Salida registrada");
+                        //membershipStatusLabel.setStyle("-fx-text-fill: white !important;");
+                        paneleft.setStyle("-fx-background-color: #00AAE4;");
+                        
+                        if(mediaPlayerSuccess != null) {
+                            mediaPlayerSuccess.play();
+                            mediaPlayerSuccess.seek(Duration.ZERO);
+                        }
+                        
+                        if(seleccionado != null){
+                            enviarUno(seleccionado, "0");
+                            
+                        }
+                    });
+                    
+                    return false;
+                } 
+            }
+            
+            //INSERTAR ASITENCIA EN VISITA
+            if (user.getDuracion() == 1 && user.getEstatus().equals("1")) {
+                DataInserter.insertarAsistencia(
                 user.getClave(), 
                 user.getFechaInicio(), 
                 user.getFechaFin(), 
@@ -512,7 +499,7 @@ private static String bytesToHex(byte[] bytes) {
                 if (user.getEstafeta().equals(id)){
                     //System.out.println("entrando a la funcion 2" + user);
                     
-                    Image image = new Image("/huellatorniquete/images/usuario.jpg");
+                    //Image image = new Image("/huellatorniquete/images/usuario.jpg");
                     
                     Platform.runLater(() -> {
                         // Actualizaciones básicas de UI
@@ -533,14 +520,20 @@ private static String bytesToHex(byte[] bytes) {
                         
                         membershipStatusLabel.setText("Membresia Activa");
                         paneleft.setStyle("-fx-background-color: #98ff96;");
+                        membershipStatusLabel.setStyle("-fx-text-fill: black;");
+                        
                         CompletableFuture.runAsync(() -> {
-                            ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                            if (seleccionado != null) {
-                                //enviarSeñalApertura(seleccionado.getSystemPortName());
-                                //enviarDato(seleccionado,1);
-                                enviarUno(seleccionado,(byte) 1);
-                                System.out.println("UNO ENVIADO");
+                            if(user.getEstatusQR() == 0){
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                if (seleccionado != null) {
+                                enviarUno(seleccionado, "1");
+                                //System.out.println("UNO ENVIADO");
+                                }
                             }
+                            
+                            
                         });
                     }
                     ///CUANDO FALTA POCO PARA QUE LA MEMBRESIA EXPIRE
@@ -554,11 +547,14 @@ private static String bytesToHex(byte[] bytes) {
                         membershipStatusLabel.setStyle("-fx-text-fill: black;");
                         
                         CompletableFuture.runAsync(() -> {
-                            ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                            if (seleccionado != null) {
-                                //enviarSeñalApertura();
-                                enviarUno(seleccionado, (byte) 1);
-                                System.out.println("UNO ENVIADO");
+                            if(user.getEstatusQR() == 0){
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                if (seleccionado != null) {
+                                enviarUno(seleccionado,"1");
+                                //System.out.println("UNO ENVIADO");
+                                }
                             }
                         });
                     }
@@ -605,6 +601,12 @@ private static String bytesToHex(byte[] bytes) {
 
     return false;  // Solo necesitas un return false al final
 }
+    
+    
+    
+    
+    
+    
     
     
     public boolean processUserQr(String id) {
@@ -622,58 +624,75 @@ private static String bytesToHex(byte[] bytes) {
     for (User user : userData) {
         if (user.getEstafeta().equalsIgnoreCase(id)) {
             System.out.println("el usuario es: " + user); 
-            
-            // Verificar si ya existe un registro en la tabla de asistencia con la misma estafeta y duración
+  
+            int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
             boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
+
+            System.out.println("Estatus actual en BD: " + estatusActual);
+            System.out.println("¿Asistencia existente?: " + asistenciaExistente);
+
+            if (estatusActual == 1) {
+            // Si el usuario ya está dentro (estatusQR = 1)
+            Platform.runLater(() -> {
+                nameLabel.setText(user.getNombreCompleto());
+                branchLabel.setText(user.getIdBodega());
+                membershipLabel.setText(user.getTitulo());
+                durationLabel.setText(user.getDuracion().toString());
+                startDateLabel.setText(user.getFechaInicio());
+                endDateLabel.setText(user.getFechaFin());
+                membershipStatusLabel.setText("Usuario ya está dentro");
+                paneleft.setStyle("-fx-background-color: #2271b3;");
+                membershipStatusLabel.setStyle("-fx-text-fill: white;");
+        
+                if (mediaPlayerError != null) {
+                    mediaPlayerError.play();
+                    mediaPlayerError.seek(Duration.ZERO);
+                }
+            });
+            return false;
+
+        } else if (asistenciaExistente) {
+        // Si la asistencia ya fue utilizada
+          Platform.runLater(() -> {
+            nameLabel.setText(user.getNombreCompleto());
+            branchLabel.setText(user.getIdBodega());
+            membershipLabel.setText(user.getTitulo());
+            durationLabel.setText(user.getDuracion().toString());
+            startDateLabel.setText(user.getFechaInicio());
+            endDateLabel.setText(user.getFechaFin());
+
+            membershipStatusLabel.setText("Membresía ya utilizada");
+            paneleft.setStyle("-fx-background-color: #2271b3;");
+            membershipStatusLabel.setStyle("-fx-text-fill: white;");
+        
+            if (mediaPlayerError != null) {
+                mediaPlayerError.play();
+                mediaPlayerError.seek(Duration.ZERO);
+            }
+        });
+        return false;
+
+        } else {
+            // Si el usuario tiene estatusQR = 0 y no ha registrado asistencia
             
-            if (asistenciaExistente) {
-                // Si la asistencia ya existe, mostrar mensaje en UI y cambiar fondo a azul
-                Platform.runLater(() -> {
-                    nameLabel.setText(user.getNombreCompleto());
-                    branchLabel.setText(user.getIdBodega());
-                    membershipLabel.setText(user.getTitulo());
-                    durationLabel.setText(user.getDuracion().toString());
-                    startDateLabel.setText(user.getFechaInicio());
-                    endDateLabel.setText(user.getFechaFin());
-                    
-                    membershipStatusLabel.setText("Membresía ya utilizada");
-                    paneleft.setStyle("-fx-background-color: blue;");
-                    
-                    if (mediaPlayerError != null) {
-                        mediaPlayerError.play();
-                        mediaPlayerError.seek(Duration.ZERO);
-                    }
-                    
-                    CompletableFuture.runAsync(() -> {
-                        //ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                        if (seleccionado != null) {
-                            enviarUno(seleccionado, (byte) 0);
-                            System.out.println("CERO ENVIADO");
-                        }
-                        });
-                });
-                return false; // Salir de la función, no procesar más
-            } 
-            
-            if(user.getDuracion() == 1){
+        
+
+            //INSERTAR ASITENCIA EN VISITA
+            if(user.getDuracion() == 1 && user.getEstatus().equals("1")){
             DataInserter.insertarAsistencia(
                 user.getClave(), 
                 user.getFechaInicio(), 
-                user.getFechaFin(), 
-                user.getDuracion(), 
+                user.getFechaFin(),
+                user.getDuracion(),
                 user.getEstafeta(), 
                 user.getEstatus());
             }
             
             updateUIWithUser(user);
-           
+            
+            
             if (user.getEstafeta().equals(id)) {
                 if (user.getEstafeta().equals(id)){
-                    
-                    enviarUno(seleccionado, (byte) 1);
-                    enviarFecha(seleccionado);
-                    System.out.println("DATOS ENVIADOS");
-                    
                     //System.out.println("entrando a la funcion 2" + user);
                     
                     Image image = new Image("/huellatorniquete/images/usuario.jpg");
@@ -694,14 +713,20 @@ private static String bytesToHex(byte[] bytes) {
                             mediaPlayerSuccess.play();
                             mediaPlayerSuccess.seek(Duration.ZERO);
                         }
+                        
                         membershipStatusLabel.setText("Membresia Activa");
                         paneleft.setStyle("-fx-background-color: #98ff96;");
                         CompletableFuture.runAsync(() -> {
-                            ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                            if (seleccionado != null) {
-                                //enviarSeñalApertura(seleccionado.getSystemPortName());
-                                //enviarUno(seleccionado, (byte) 1);
+                            if(user.getEstatusQR() == 0){
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                if (seleccionado != null) {
+                                enviarFechaYHora(seleccionado, "1");
+                                }
                             }
+                            
+                            
                         });
                     }
                     ///CUANDO FALTA POCO PARA QUE LA MEMBRESIA EXPIRE
@@ -715,10 +740,13 @@ private static String bytesToHex(byte[] bytes) {
                         membershipStatusLabel.setStyle("-fx-text-fill: black;");
                         
                         CompletableFuture.runAsync(() -> {
-                            ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                            if (seleccionado != null) {
-                                //enviarSeñalApertura();
-                                //enviarUno(seleccionado, (byte) 1);
+                            if(user.getEstatusQR() == 0){
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                if (seleccionado != null) {
+                                enviarFechaYHora(seleccionado, "1");
+                                }
                             }
                         });
                     }
@@ -742,6 +770,7 @@ private static String bytesToHex(byte[] bytes) {
                 }
             }
             return true;
+            }
         }
     }
     
@@ -768,136 +797,101 @@ private static String bytesToHex(byte[] bytes) {
     
     
     
-    public static void enviarUno(SerialPort puerto, byte dato) {
+    public static void enviarUno(SerialPort puerto, String dato) {
     if (puerto == null || !puerto.isOpen()) {
-        System.out.println("Error: El puerto no está disponible.");
+        System.out.println("Error: El puerto no está disponible.");
         return;
     }
     try {
-        // Enviamos exactamente el valor 1 como byte
-        byte[] data = {dato};  // o también {0x01}
+        // Convertimos el dato a un byte array
+        byte[] data = dato.getBytes(); // Convierte el String a bytes
         int bytesWritten = puerto.writeBytes(data, data.length);
-        
+
         if (bytesWritten == data.length) {
-            System.out.println("1 enviado exitosamente");
+            System.out.println(dato + " enviado exitosamente");
         } else {
-            System.out.println("Error al enviar el 1");
+            System.out.println("Error al enviar el dato: " + dato);
         }
-        
+
         Thread.sleep(50);
         puerto.flushIOBuffers();
-        
+
     } catch (Exception e) {
         System.out.println("Error al enviar: " + e.getMessage());
         e.printStackTrace();
     }
 }
-    
-    public  String getTime(){
-    LocalDateTime ahora = LocalDateTime.now();
-    return ahora.toString();
-    }
-    
-    public void enviarFecha(SerialPort puerto) {
-    if (puerto == null || !puerto.isOpen()) {
-        System.out.println("Error: El puerto no está disponible.");
-        return;
-    }
-    
-    try {
-        String fechaActual = getTime(); // Asumiendo que este método devuelve la fecha como string
-        byte[] bytes = fechaActual.getBytes();
-        int bytesWritten = puerto.writeBytes(bytes, bytes.length);
-        
-        if (bytesWritten == bytes.length) {
-            System.out.println("Fecha enviada exitosamente: " + fechaActual);
-        } else {
-            System.out.println("Error al enviar la fecha. Bytes enviados: " + bytesWritten + " de " + bytes.length);
-        }
-        
-        Thread.sleep(50);
-        puerto.flushIOBuffers();
-        
-    } catch (Exception e) {
-        System.out.println("Error al enviar: " + e.getMessage());
-        e.printStackTrace();
-    }
-}
-    
-    /*
-     public static void enviarSeñalApertura(String portName) {
-        SerialPort port = SerialPort.getCommPort(portName);
-        
-        if (port.openPort()) {
-            try {
-                port.setComPortParameters(9600, 8, 1, SerialPort.NO_PARITY);
-                port.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 0);
 
-                byte[] signal = "1".getBytes();
-                System.out.println("Bytes"+signal);
-                int bytesWritten = port.writeBytes(signal, signal.length);
-                
-                if (bytesWritten == signal.length) {
-                   System.out.println("Señal enviada exitosamente");
-                } else {
-                    //System.out.println("Error al enviar la señal");
-                }
-            } finally {
-                port.closePort();
-            }
-        } else {
-            //System.out.println("No se pudo abrir el puerto " + portName);
+    
+    public class FechaHora{
+        public static String getFecha(){
+            LocalDateTime ahora = LocalDateTime.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            System.out.println("FECHA: "+ahora);
+            return ahora.format(formatter);
+        }
+        
+        public static  String getHora(){
+            LocalDateTime ahora = LocalDateTime.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+            System.out.println("HORA: "+ahora);
+            return ahora.format(formatter);
         }
     }
-*/
- 
-    /*public void enviarATodasLosPuertos() {
-    Task<Void> task = new Task<Void>() {
-        @Override
-        protected Void call() {
-            SerialPort[] ports = SerialPort.getCommPorts();
-            //System.out.println("Puertos disponibles: " + ports.length);
-            for (SerialPort port : ports) {
-                //System.out.println("Intentando enviar señal al puerto: " + port.getSystemPortName());
-                enviarSeñalApertura(port.getSystemPortName());
-            }
-            return null;
-        }
-    };
-
-    // Ejecutar el task en un hilo separado
-    new Thread(task).start();
-}*/
     
-    
-/*
-public static void enviarDato(SerialPort puerto, int dato) {
+    public void enviarFechaYHora(SerialPort puerto, String estatusQr) {
     if (puerto == null || !puerto.isOpen()) {
         System.out.println("Error: El puerto no está disponible.");
         return;
     }
 
     try {
-        // No cambiar la configuración del puerto aquí
-        byte[] data = {(byte) dato};
-        int bytesWritten = puerto.writeBytes(data, data.length);
+        String fechaActual = FechaHora.getFecha(); // Obtiene la fecha
+        String horaActual = FechaHora.getHora();   // Obtiene la hora
         
-        if (bytesWritten == data.length) {
-            System.out.println("Dato enviado exitosamente: " +dato);
+        // Enviar la fecha primero
+        byte[] fechaBytes = fechaActual.getBytes();
+        int fechaBytesWritten = puerto.writeBytes(fechaBytes, fechaBytes.length);
+
+        if (fechaBytesWritten == fechaBytes.length) {
+            System.out.println("Fecha enviada exitosamente: " + fechaActual);
         } else {
-            System.out.println("No se pudo enviar el dato completo. Bytes enviados: " + bytesWritten + " de " + data.length);
+            System.out.println("Error al enviar la fecha.");
+        }
+
+        Thread.sleep(50); // Pequeña pausa de 50 milisegundos 
+
+        // Enviar la hora después
+        byte[] horaBytes = horaActual.getBytes();
+        int horaBytesWritten = puerto.writeBytes(horaBytes, horaBytes.length);
+
+        if (horaBytesWritten == horaBytes.length) {
+            System.out.println("Hora enviada exitosamente: " + horaActual);
+        } else {
+            System.out.println("Error al enviar la hora.");
+        }
+             
+
+        Thread.sleep(50); // Pequeña pausa de 50 milisegundos 
+
+        // Enviar la hora después
+        byte[] data = estatusQr.getBytes(); // Convierte el String a bytes
+        int bytesWritten = puerto.writeBytes(data, data.length);
+
+        if (bytesWritten == data.length) {
+            System.out.println(estatusQr + " enviado exitosamente");
+        } else {
+            System.out.println("Error al enviar el dato: " + estatusQr);
         }
         
-        Thread.sleep(50);  // Reducido el tiempo de espera
-        puerto.flushIOBuffers();
-        
+        puerto.flushIOBuffers(); // Limpiar buffers después de enviar ambos datos
+
     } catch (Exception e) {
-        System.out.println("Error al enviar el dato: " + e.getMessage());
+        System.out.println("Error al enviar fecha y hora: " + e.getMessage());
         e.printStackTrace();
     }
-    // No cerrar el puerto aquí
 }
-     */
+
     
     //FINGERPRINT READER
     public static Reader getReaders(){
@@ -1023,195 +1017,6 @@ public static void enviarDato(SerialPort puerto, int dato) {
         thread.start();
     }
     
-    
-    /*private void actualizarDatosUsuario(User user) {
-    Platform.runLater(() -> {
-        try {
-            //System.out.println("Actualizando datos del usuario en el hilo de JavaFX.");
-            getPort();
-            
-            if(seleccionado != null){
-                if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 10) {
-                // Actualizar UI primero
-                enviarSeñalApertura(seleccionado.getSystemPortName());
-                enviarDato(seleccionado, 1);
-                
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Membresia Activa");
-                paneleft.setStyle("-fx-background-color: #98ff96;");
-
-
-                //actualizarUI(user, true, "#98ff96");
-                if (mediaPlayerSuccess != null) {
-                    mediaPlayerSuccess.play();
-                    mediaPlayerSuccess.seek(Duration.ZERO);
-                }
-
-                // Ejecutar la llamada al servicio en un hilo separado
-                CompletableFuture.runAsync(() -> {
-                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                });
-
-            } else if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) < 4) {
-                // Actualizar UI primero
-                
-                enviarSeñalApertura(seleccionado.getSystemPortName());
-                enviarDato(seleccionado, 1);
-                
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Membresia Activa-vencera pronto");
-                paneleft.setStyle("-fx-background-color: yellow;");
-                
-                //actualizarUI(user, true, "yellow");
-                if (mediaPlayerSuccess != null) {
-                    mediaPlayerSuccess.play();
-                    mediaPlayerSuccess.seek(Duration.ZERO);
-                }
-                // Ejecutar la llamada al servicio en un hilo separado
-                CompletableFuture.runAsync(() -> {
-                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                });
-
-            } else {
-                // Actualizar UI para usuario no activo
-                
-                
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("sin membresia activa");
-                paneleft.setStyle("-fx-background-color: red;");
-                
-                
-                //actualizarUI(user, false, "red");
-                if (mediaPlayerError != null) {
-                    mediaPlayerError.play();
-                    mediaPlayerError.seek(Duration.ZERO);
-
-                }
-            }
-            } else {
-                if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 10) {
-                    
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Membresia Activa");
-                paneleft.setStyle("-fx-background-color: #98ff96;");
-                    
-                //actualizarUI(user, true, "#98ff96");
-                //reproducirSonidoExito();
-
-                // Ejecutar la llamada al servicio en un hilo separado
-                CompletableFuture.runAsync(() -> {
-                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                });
-
-            } else if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) < 4) {
-                
-                
-                
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Membresia Activa-vencera pronto");
-                paneleft.setStyle("-fx-background-color: yellow;");
-     
-                //actualizarUI(user, true, "yellow");
-                //reproducirSonidoExito();
-                // Ejecutar la llamada al servicio en un hilo separado
-                CompletableFuture.runAsync(() -> {
-                    ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                });
-
-            } else {
-                
-                //new case
-                buscarTextField.setText("");
-                Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                userPhotoImageView.setImage(image);
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("sin membresia activa");
-                paneleft.setStyle("-fx-background-color: red;");
-                
-                // Actualizar UI para usuario no activo
-                //actualizarUI(user, false, "red");
-                //reproducirSonidoError();
-            }
-            }
-
-            
-
-        } catch (Exception e) {
-            System.err.println("Error al actualizar datos del usuario: " + e.getMessage());
-            e.printStackTrace();
-        }
-    });
-}*/
-    
-   /* private void actualizarUI(User user, boolean activo, String colorPanel) {
-    buscarTextField.setText("");
-    Image image = new Image("/huellatorniquete/images/usuario.jpg");
-    userPhotoImageView.setImage(image);
-    nameLabel.setText(user.getNombreCompleto());
-    branchLabel.setText(user.getIdBodega());
-    membershipLabel.setText(user.getTitulo());
-    durationLabel.setText(user.getDuracion().toString());
-    startDateLabel.setText(user.getFechaInicio());
-    endDateLabel.setText(user.getFechaFin());
-    
-    if (activo) {
-        membershipStatusLabel.setText(user.getDaysBetweenDate(user.getFechaFin()) < 4 ? "Activo - La membresia esta por expirar" : "Membresía Activa");
-    } else {
-        membershipStatusLabel.setText("Sin Membresía");
-    }
-    
-    paneleft.setStyle("-fx-background-color: " + colorPanel + ";");
-}*/
 
     public static Fmd capturarHuella(Reader reader) {
  
@@ -1245,9 +1050,6 @@ public static void enviarDato(SerialPort puerto, int dato) {
     }
 
     for (User u : dataUser) {
-        // Verificar si la huella es null o vacía
-        //System.out.println("Usuario antes de convertir: " + u.getNombreCompleto() + " - Huella: " + (u.getHuella() != null ? "EXISTE" : "NULL"));
-
         if (u.getHuella() == null || u.getHuella().trim().isEmpty()) {
             System.out.println("Skipping user " + u.getNombreCompleto() + " - No fingerprint data");
             continue;
@@ -1259,10 +1061,6 @@ public static void enviarDato(SerialPort puerto, int dato) {
             Fmd fmd = decodificarFMD(u.getHuella());
 
             if (fmd != null) {
-                // Si fmd no es null, imprimimos más detalles de la huella
-                //System.out.println("Huella convertida para " + u.getNombreCompleto() + ": OK");
-                //System.out.println("Detalles de FMD para " + u.getNombreCompleto() + ": " + fmd.toString());
-
                 // Asignamos la huella convertida al usuario
                 u.setHuellaFmd(fmd);
             } else {
@@ -1276,52 +1074,6 @@ public static void enviarDato(SerialPort puerto, int dato) {
 }
 
 
-    /*
-    for (User u : dataUser) {
-        String huella = u.getHuella();
-        
-        // Add null and empty string checks
-        if (huella == null || huella.trim().isEmpty()) {
-            //System.out.println("Skipping user " + u.getNombreCompleto() + " - No fingerprint data");
-            continue;
-        }
-
-        try {
-            // Use the decodificarFMD method to convert the fingerprint
-            Fmd fmd = decodificarFMD(huella);
-            System.out.println("Decodificación de huella para usuario " + u.getNombreCompleto() + ": " + (fmd != null ? "ÉXITO" : "FALLÓ"));
-
-            
-            if (fmd != null) {
-                // Set the Fmd in the User object
-                u.setHuellaFmd(fmd);
-                
-                //System.out.println("Successfully converted fingerprint for user: " + u.getNombreCompleto());
-            } else {
-                System.err.println("Could not decode fingerprint for user: " + u.getNombreCompleto());
-            }
-        } catch (Exception e) {
-            System.err.println("Error converting fingerprint for user " + u.getNombreCompleto() + ": " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    */
-
-
-    
-    
-   
-    /*private void reproducirSonidoExito() {
-    mediaPlayerSuccess.stop();
-    mediaPlayerSuccess.seek(Duration.ZERO);
-    mediaPlayerSuccess.play();
-}
-
-private void reproducirSonidoError() {
-    mediaPlayerError.stop();
-    mediaPlayerError.seek(Duration.ZERO);
-    mediaPlayerError.play();
-}*/
 
     public static Fmd decodificarFMD(String base64) {
     // Check for null or empty string
@@ -1357,7 +1109,7 @@ private void reproducirSonidoError() {
 @FXML
 public void ActualizarLocalDatabase() {
     try {
-        System.out.println("🔄 Iniciando actualización de la base de datos local...");
+        System.out.println(" Iniciando actualización de la base de datos local...");
 
         ObservableList<User> nuevaLista = FXCollections.observableArrayList(ApiService.getDataClient(idSucursal));
 
@@ -1409,8 +1161,32 @@ public void ActualizarLocalDatabase() {
 
 @FXML
 public void recargarControlador() {
-    //System.out.println("Reiniciando controlador...");
-    initialize(); // Llama al método de inicialización manualmente
+    
+    buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (!newValue.matches("\\d*")) {
+                buscarTextField.setText(newValue.replaceAll("[^\\d]", ""));
+            }
+        });
+    
+     getFrase();
+     labelMotivacion.setText(frase);
+       
+     userData.setAll(DataInserter.geth2InfoUser());
+        //startWebService();
+        
+        convertHuellas(userData);
+        compareFingerprint(userData);
+
+    
+        idSucursal = HuellaTorniquete.getIdSucursal();
+       // System.out.println("Obtenemos idSucursal: "+idSucursal);
+       
+       buscarTextField.setOnKeyPressed(event -> {
+        if (event.getCode() == KeyCode.ENTER) {
+            String numero = buscarTextField.getText();
+            processUserById(numero);
+        }
+    });
 }
 
 

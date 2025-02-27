@@ -17,7 +17,7 @@ public class DataInserter {
         String deleteSQL = "DELETE FROM DATACLIENT";
         String insertSQL = "INSERT INTO DATACLIENT ("
             + "Clave, NombreCompleto, Estafeta, IdBodega, FechaInicio, FechaFin, Estatus, Titulo, Duracion, Precio, estatusQR, Huella"
-            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement deleteStatement = connection.prepareStatement(deleteSQL);
@@ -51,7 +51,8 @@ public class DataInserter {
                     insertStatement.setString(8, user.getTitulo());
                     insertStatement.setInt(9, user.getDuracion() != null ? user.getDuracion() : 0);
                     insertStatement.setInt(10, user.getPrecio() != null ? user.getPrecio() : 0);
-                    insertStatement.setString(11, user.getHuella());
+                    insertStatement.setInt(11, user.getEstatusQR() != null ? user.getEstatusQR() : 0);
+                    insertStatement.setString(12, user.getHuella());
 
                     insertStatement.addBatch();
                 }
@@ -95,6 +96,7 @@ public class DataInserter {
             user.setDuracion(String.valueOf(resultSet.getInt("Duracion")));
             user.setPrecio(String.valueOf(resultSet.getInt("Precio")));
             user.setHuella(resultSet.getString("Huella"));
+            user.setEstatusQR(String.valueOf(resultSet.getInt("EstatusQR")));
             
 
             userList.add(user);
@@ -171,8 +173,49 @@ public class DataInserter {
     }
     return false; // No existe
 }
+    
+    
+    ///CAMBIAR ESTATUS
+    public static boolean cambiarEsatusQR(String estafeta) {
+    String query = "UPDATE DATACLIENT SET ESTATUSQR = CASE " +
+                   "WHEN ESTATUSQR = 0 THEN 1 " +
+                   "WHEN ESTATUSQR = 1 THEN 0 " +
+                   "ELSE ESTATUSQR END " +
+                   "WHERE ESTAFETA = ?";
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement stmt = connection.prepareStatement(query)) {
+
+        stmt.setString(1, estafeta);
+        int rowsAffected = stmt.executeUpdate(); 
+
+        return rowsAffected > 0; 
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+
+    return false; 
+}
+    
+    //Obtener estatus
+    public static int obtenerEstatusQR(String estafeta) {
+    String query = "SELECT ESTATUSQR FROM DATACLIENT WHERE ESTAFETA = ?";
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement stmt = connection.prepareStatement(query)) {
+        
+        stmt.setString(1, estafeta);
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("ESTATUSQR"); // Devuelve el estatus actual
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return -1; // Devuelve -1 si el usuario no existe o hay error
+}
 
 
+   
 }
 
 

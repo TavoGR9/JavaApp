@@ -39,6 +39,9 @@ public class User {
 
     @JsonProperty("precio")
     private String precio;
+    
+    @JsonProperty("estatusQR")
+    private String estatusQR;
 
     private Fmd BinHuella;
 
@@ -56,6 +59,7 @@ public class User {
             ", titulo='" + titulo + '\'' +
             ", duracion='" + duracion + '\'' +
             ", precio='" + precio + '\'' +
+            ", estatusQR='" + estatusQR + '\'' +
             '}';
     }
 
@@ -117,6 +121,17 @@ public class User {
             return null;
         }
     }
+    
+    public Integer getEstatusQR() {
+        if (estatusQR == null || estatusQR.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(estatusQR);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     public Fmd getHuellaFmd() {
         return BinHuella;
@@ -173,6 +188,10 @@ public class User {
 
     public void setPrecio(String precio) {
         this.precio = precio;
+    }
+    
+    public void setEstatusQR(String estatusQR) {
+        this.estatusQR = estatusQR;
     }
 
     public void setHuellaFmd(Fmd huella) {

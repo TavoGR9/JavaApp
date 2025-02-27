@@ -123,6 +123,31 @@ public class ApiService {
         }
     });
 }
+    
+    public static CompletableFuture<Boolean> CambiarEstatus(String estafeta, String idGym) {
+    return CompletableFuture.supplyAsync(() -> {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                  
+                //.uri(URI.create(API_URL + "olimpusGym/conf/huella.php?obtenerIdClienteHuella=" + estafeta + "&idGymnasio=" + idGym))
+                .uri(URI.create(API_URL + "huella.php?estafeta=" + estafeta + "&idGymnasio=" + idGym))
+                .build();
+            
+            System.out.println("URL SERVICE: " + request);
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() == 200) {
+                System.out.println("solicitud correcta: " + response.body());
+                return true;
+            }
+            return false;
+        } catch (IOException | InterruptedException e) {
+            System.out.println("Error durante la solicitud: " + e.getMessage());
+            return false;
+        }
+    });
+}
 
 
 }
