@@ -42,6 +42,10 @@ public class User {
     
     @JsonProperty("estatusQR")
     private String estatusQR;
+    
+    @JsonProperty("salida")
+    private String salida;
+    
 
     private Fmd BinHuella;
 
@@ -60,6 +64,7 @@ public class User {
             ", duracion='" + duracion + '\'' +
             ", precio='" + precio + '\'' +
             ", estatusQR='" + estatusQR + '\'' +
+            ", salida='" + salida + '\'' +
             '}';
     }
 
@@ -137,6 +142,19 @@ public class User {
         return BinHuella;
     }
     
+    public Integer getSalida() {
+        if (salida == null || salida.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(salida);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+    
+    
     
     public long getDaysBetweenDate(String fechaFin) {
     LocalDate fechaFinDate = LocalDate.parse(fechaFin);
@@ -197,4 +215,10 @@ public class User {
     public void setHuellaFmd(Fmd huella) {
         this.BinHuella = huella;
     }
+    
+    public void setSalida(String salida) {
+        this.salida = salida;
+    }
+    
+    
 }

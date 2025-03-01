@@ -48,6 +48,8 @@ import javafx.util.Duration;
 import javax.swing.SwingWorker;
 import static spark.Spark.*;
 import com.google.gson.Gson;
+
+import huellatorniquete.databaseMethods.ScheduledTaskManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -123,7 +125,7 @@ public class MainController {
     public void initialize() { 
         
         
-        
+        //ScheduledTaskManager.iniciarActualizacionPeriodica();//actualizacion periodica 
         
         buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (!newValue.matches("\\d*")) {
@@ -189,6 +191,7 @@ public class MainController {
         stage.setOnCloseRequest((WindowEvent event) -> {
             // Aquí cerramos el servidor que escucha en el puerto 4567
             //stopWebService();
+           // ScheduledTaskManager.detenerActualizacion();
             closePort();
         });
         });
@@ -216,7 +219,13 @@ public class MainController {
                 System.out.println("❌ Error al abrir el puerto");
                 return;
             }
+            // Añadir un retraso para permitir que el dispositivo termine su inicialización
             
+                //Thread.sleep(1000);  // Espera de 1 segundo
+                //seleccionado.clearDTR();  // Limpiar línea DTR si es necesario
+                seleccionado.flushIOBuffers();  // Vaciar los buffers de entrada/salida
+            
+
             System.out.println("✅ Puerto seleccionado: " + seleccionado.getSystemPortName());
             
             // Buffer para acumular datos
@@ -373,65 +382,52 @@ private static String bytesToHex(byte[] bytes) {
     
     
     
-    
-    
-    public boolean processUserById(String id) {
-    
-    boolean encontrado = false;
-    System.out.println("Hola si esta entrando perros");
-    System.out.println("El id que pasaron fue: " + id);
-    
-    
-    if (userData.isEmpty()) {
-        System.out.println("Por eso no muestra nada");
-        userData.setAll(DataInserter.geth2InfoUser());
-    }
-    
-    // Ahora procesamos los datos independientemente de si estaban vacíos o no
-    for (User user : userData) {
-        if (user.getEstafeta().equalsIgnoreCase(id)) {
-            System.out.println("el usuario es: " + user); 
-  
-            int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
-            System.out.println("Estatus actual en BD: " + estatusActual);
-            
-            ///SI EXISTE EN ASISTENCIA
-            boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
-            Image image = new Image("/huellatorniquete/images/usuario.jpg");
-            
-            if (asistenciaExistente) {
-            // Si ya tiene asistencia registrada, verificar su estatus actual
-                if (estatusActual == 1) {
-                // Usuario quiere salir, cambiar su estatus a 0 (fuera)
-                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-
+   public boolean processUserById(String id){
+       boolean encontrado = false;
+       
+       System.out.println("Hola si esta entrando perros");
+       System.out.println("El id que pasaron fue: " + id);
+       
+       if (userData.isEmpty()){
+           System.out.println("Por eso no muestra nada");
+           userData.setAll(DataInserter.geth2InfoUser());
+       }
+       // Ahora procesamos los datos independientemente de si estaban vacíos o no
+       for(User user : userData){
+           if (user.getEstafeta().equalsIgnoreCase(id)){
+               Image image = new Image("/huellatorniquete/images/usuario.jpg");
+               
+               int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
+               System.out.println("Estatus actual en BD: " + estatusActual);
+               boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
+               
+               
+               
+               if(estatusActual == 1){
+                   Platform.runLater(() -> {
+                       userPhotoImageView.setImage(image);
+                       nameLabel.setText(user.getNombreCompleto());
+                       membershipStatusLabel.setText("Salida");
+                       paneleft.setStyle("-fx-background-color: #00AAE4;");
+                       
+                       if (mediaPlayerError != null) {
+                        mediaPlayerError.play();
+                        mediaPlayerError.seek(Duration.ZERO);
+                        }
+                       
+                        if(seleccionado != null){
+                            enviarEstatus(seleccionado, "OK", "0");
+                        }
+                        //insersion o cambio de datos
+                        DataInserter.cambiarEsatusQR(user.getEstafeta());
+                        ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                   });
+                   return false;
+               }
+               
+               if (asistenciaExistente) {
+                // Si la asistencia ya fue utilizada
                 Platform.runLater(() -> {
-                    userPhotoImageView.setImage(image);
-                    nameLabel.setText(user.getNombreCompleto());
-                    branchLabel.setText(user.getIdBodega());
-                    membershipLabel.setText(user.getTitulo());
-                    durationLabel.setText(user.getDuracion().toString());
-                    startDateLabel.setText(user.getFechaInicio());
-                    endDateLabel.setText(user.getFechaFin());
-
-                    membershipStatusLabel.setText("Salida registrada");
-                    membershipStatusLabel.setStyle("-fx-text-fill: white;");
-                    paneleft.setStyle("-fx-background-color: #00AAE4;");
-
-                    if(mediaPlayerSuccess != null) {
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                     }
-
-                    if (seleccionado != null) {
-                        enviarUno(seleccionado, "0"); // Se envía 0 para indicar salida
-                    }
-                });
-            } else {
-                // Usuario quiere ingresar, pero ya usó su membresía
-                Platform.runLater(() -> {
-                    userPhotoImageView.setImage(image);
                     nameLabel.setText(user.getNombreCompleto());
                     branchLabel.setText(user.getIdBodega());
                     membershipLabel.setText(user.getTitulo());
@@ -440,69 +436,36 @@ private static String bytesToHex(byte[] bytes) {
                     endDateLabel.setText(user.getFechaFin());
 
                     membershipStatusLabel.setText("Membresía ya utilizada");
-                    membershipStatusLabel.setStyle("-fx-text-fill: white;"); // Color rojo para indicar error
-                    paneleft.setStyle("-fx-background-color: #00AAE4;");
-
+                    paneleft.setStyle("-fx-background-color: #2271b3;");
+                    membershipStatusLabel.setStyle("-fx-text-fill: white;");
+        
                     if (mediaPlayerError != null) {
                         mediaPlayerError.play();
                         mediaPlayerError.seek(Duration.ZERO);
                     }
+                    enviarEstatus(seleccionado, "FAIL", "0");
                 });
-            }
-    
-            return false; // Salir de la función, no procesar más
-        }
-            
-            
-            
-            //////////
-            if(estatusActual == 1){
-                
-                boolean actualizado = DataInserter.cambiarEsatusQR(user.getEstafeta());
-                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                
-                if(actualizado){
-                    Platform.runLater(() ->{
-                        membershipStatusLabel.setText("Salida registrada");
-                        //membershipStatusLabel.setStyle("-fx-text-fill: white !important;");
-                        paneleft.setStyle("-fx-background-color: #00AAE4;");
-                        
-                        if(mediaPlayerSuccess != null) {
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                        }
-                        
-                        if(seleccionado != null){
-                            enviarUno(seleccionado, "0");
-                            
-                        }
-                    });
-                    
-                    return false;
+                return false;
+
                 } 
-            }
-            
-            //INSERTAR ASITENCIA EN VISITA
-            if (user.getDuracion() == 1 && user.getEstatus().equals("1")) {
-                DataInserter.insertarAsistencia(
-                user.getClave(), 
-                user.getFechaInicio(), 
-                user.getFechaFin(), 
-                user.getDuracion(),
-                user.getEstafeta(), 
-                user.getEstatus());
-            }
-            
-            updateUIWithUser(user);
-            
-            if (user.getEstafeta().equals(id)) {
-                if (user.getEstafeta().equals(id)){
-                    //System.out.println("entrando a la funcion 2" + user);
-                    
-                    //Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                    
-                    Platform.runLater(() -> {
-                        // Actualizaciones básicas de UI
+               
+               //INSERTAR ASISTENCIA
+               if (user.getDuracion() == 1 && user.getEstatus().equals("1")){
+                   DataInserter.insertarAsistencia(
+                    user.getClave(), 
+                    user.getFechaInicio(), 
+                    user.getFechaFin(),
+                    user.getDuracion(),
+                    user.getEstafeta(), 
+                    user.getEstatus());
+               }
+               
+               updateUIWithUser(user);
+               
+               
+               if (user.getEstafeta().equals(id)){
+                   if(user.getEstafeta().equals(id)){
+                       Platform.runLater(() -> {
                         userPhotoImageView.setImage(image);
                         nameLabel.setText(user.getNombreCompleto());
                         branchLabel.setText(user.getIdBodega());
@@ -511,96 +474,100 @@ private static String bytesToHex(byte[] bytes) {
                         startDateLabel.setText(user.getFechaInicio());
                         endDateLabel.setText(user.getFechaFin());
                         
-                    ///CUANDO FALTA MUCHO TIEMPO PARA QUE LA MEMBRESIA EXPIRE
-                    if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 3) {
-                        if (mediaPlayerSuccess != null){
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                        }
-                        
-                        membershipStatusLabel.setText("Membresia Activa");
-                        paneleft.setStyle("-fx-background-color: #98ff96;");
-                        membershipStatusLabel.setStyle("-fx-text-fill: black;");
-                        
-                        CompletableFuture.runAsync(() -> {
-                            if(user.getEstatusQR() == 0){
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                                if (seleccionado != null) {
-                                enviarUno(seleccionado, "1");
-                                //System.out.println("UNO ENVIADO");
-                                }
+                        if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 3){
+                            if(mediaPlayerSuccess != null){
+                                mediaPlayerSuccess.play();
+                                mediaPlayerSuccess.seek(Duration.ZERO);
                             }
                             
+                            membershipStatusLabel.setText("Membresia Activa");
+                            paneleft.setStyle("-fx-background-color: #98ff96;");
+                            membershipStatusLabel.setStyle("-fx-text-fill: black;");
                             
-                        });
-                    }
-                    ///CUANDO FALTA POCO PARA QUE LA MEMBRESIA EXPIRE
-                    else if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) <= 3){
-                        if (mediaPlayerSuccess != null){
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                        }
-                        membershipStatusLabel.setText("Activo - La membresia finalizara pronto");
-                        paneleft.setStyle("-fx-background-color: yellow;");
-                        membershipStatusLabel.setStyle("-fx-text-fill: black;");
-                        
-                        CompletableFuture.runAsync(() -> {
-                            if(user.getEstatusQR() == 0){
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                                if (seleccionado != null) {
-                                enviarUno(seleccionado,"1");
-                                //System.out.println("UNO ENVIADO");
+                            CompletableFuture.runAsync(() -> {
+                                if(seleccionado != null){
+                                    enviarEstatus(seleccionado, "OK", "1");
                                 }
+                                //insersion o cambio de datos
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                            });
+                        } else if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) <= 3){
+                            if(mediaPlayerSuccess != null){
+                                mediaPlayerSuccess.play();
+                                mediaPlayerSuccess.seek(Duration.ZERO);
                             }
-                        });
-                    }
-                    ///CUANDO YA ESTA CADUCA LA MEMBRESIA
-                    else if (user.getEstatus().equalsIgnoreCase("0") || user.getDaysBetweenDate(user.getFechaFin()) < 0){
-                        if (mediaPlayerError != null) {
-                            mediaPlayerError.play();
-                            mediaPlayerError.seek(Duration.ZERO);
+                            
+                            membershipStatusLabel.setText("Activo - La membresia finalizara pronto");
+                            paneleft.setStyle("-fx-background-color: yellow;");
+                            membershipStatusLabel.setStyle("-fx-text-fill: black;");
+                            
+                            CompletableFuture.runAsync(() -> {
+                                if(seleccionado != null){
+                                    enviarEstatus(seleccionado, "OK", "1");
+                                }
+                                //insersion o cambio de datos
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                            });
+                        } else if(user.getEstatus().equalsIgnoreCase("0") || user.getDaysBetweenDate(user.getFechaFin()) < 0){
+                            if (mediaPlayerError != null) {
+                                mediaPlayerError.play();
+                                mediaPlayerError.seek(Duration.ZERO);
+                            }
+                            
+                            membershipStatusLabel.setText("Membresia Vencida");
+                            paneleft.setStyle("-fx-background-color: red;");
+                            membershipStatusLabel.setStyle("-fx-color: white;");
+              
+                            CompletableFuture.runAsync(() -> {
+                                if(seleccionado != null){
+                                    enviarEstatus(seleccionado, "FAIL", "1");
+                                }
+                            });
                         }
-                        membershipStatusLabel.setText("Membresia Vencida");
-                        paneleft.setStyle("-fx-background-color: red;");
-                        membershipStatusLabel.setStyle("-fx-color: white;");
+                       });
+                       
+                       encontrado = true;
+                       System.out.println("Dias prueba: "+user.getDaysBetweenDate(user.getFechaFin()));
+                       break;
+                   }
+               }
                
-                    }
-                    });
-                    
-                    encontrado = true;
-                    System.out.println("DIAS PRUEBA: " + user.getDaysBetweenDate(user.getFechaFin()));
-                    break;
- 
-                }
-            }
-            return true;
-        }
-    }
-    
-    if (!encontrado) {
-            Platform.runLater(() -> {
-                nameLabel.setText("No encontrado");
-                branchLabel.setText("No encontrado");
-                membershipLabel.setText("No encontrado");
-                durationLabel.setText("No encontrado");
-                startDateLabel.setText("No encontrado");
-                endDateLabel.setText("No encontrado");
-                membershipStatusLabel.setText("Sin Membresia");
-                paneleft.setStyle("-fx-background-color: #E1E1E1;");
-                if (mediaPlayerError != null) {
+               return true;
+               
+           }
+       }
+       
+       if(!encontrado){
+           Platform.runLater(() -> {
+               nameLabel.setText("No encontrado");
+               branchLabel.setText("No encontrado");
+               membershipLabel.setText("No encontrado");
+               durationLabel.setText("No encontrado");
+               startDateLabel.setText("No encontrado");
+               endDateLabel.setText("No encontrado");
+               membershipStatusLabel.setText("Sin Membresia");
+               paneleft.setStyle("-fx-background-color: #E1E1E1;");
+               
+               if (mediaPlayerError != null) {
                     mediaPlayerError.play();
                     mediaPlayerError.seek(Duration.ZERO);
                 }
+               
+                CompletableFuture.runAsync(() -> {
+                    if(seleccionado != null){
+                        enviarEstatus(seleccionado, "FAIL", "1");
+                    }
+                });
             });
-        }
-   
-
-    return false;  // Solo necesitas un return false al final
-}
+       }
+       
+       
+       return false; //Parar la funcion 
+   }
     
     
     
@@ -609,9 +576,9 @@ private static String bytesToHex(byte[] bytes) {
     
     
     
-    public boolean processUserQr(String id) {
+    public boolean processUserQr(String id) { 
     boolean encontrado = false;
-    System.out.println("Hola si esta entrando perros");
+    System.out.println("Hola si esta entrando perros A QR");
     System.out.println("El id que pasaron fue: " + id);
     
     
@@ -620,16 +587,18 @@ private static String bytesToHex(byte[] bytes) {
         userData.setAll(DataInserter.geth2InfoUser());
     }
     
+    
     // Ahora procesamos los datos independientemente de si estaban vacíos o no
     for (User user : userData) {
         if (user.getEstafeta().equalsIgnoreCase(id)) {
+            
             System.out.println("el usuario es: " + user); 
   
             int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
             boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
 
-            System.out.println("Estatus actual en BD: " + estatusActual);
-            System.out.println("¿Asistencia existente?: " + asistenciaExistente);
+            //System.out.println("Estatus actual en BD: " + estatusActual);
+            //System.out.println("¿Asistencia existente?: " + asistenciaExistente);
 
             if (estatusActual == 1) {
             // Si el usuario ya está dentro (estatusQR = 1)
@@ -640,7 +609,7 @@ private static String bytesToHex(byte[] bytes) {
                 durationLabel.setText(user.getDuracion().toString());
                 startDateLabel.setText(user.getFechaInicio());
                 endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Usuario ya está dentro");
+                membershipStatusLabel.setText("Salida");
                 paneleft.setStyle("-fx-background-color: #2271b3;");
                 membershipStatusLabel.setStyle("-fx-text-fill: white;");
         
@@ -648,10 +617,16 @@ private static String bytesToHex(byte[] bytes) {
                     mediaPlayerError.play();
                     mediaPlayerError.seek(Duration.ZERO);
                 }
+                
+                enviarFechaYHora(seleccionado, "0");
+                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
             });
             return false;
 
-        } else if (asistenciaExistente) {
+        } 
+            
+         if (asistenciaExistente) {
         // Si la asistencia ya fue utilizada
           Platform.runLater(() -> {
             nameLabel.setText(user.getNombreCompleto());
@@ -669,14 +644,13 @@ private static String bytesToHex(byte[] bytes) {
                 mediaPlayerError.play();
                 mediaPlayerError.seek(Duration.ZERO);
             }
+            enviarFechaYHora(seleccionado, "0");
         });
         return false;
 
-        } else {
+        } 
             // Si el usuario tiene estatusQR = 0 y no ha registrado asistencia
             
-        
-
             //INSERTAR ASITENCIA EN VISITA
             if(user.getDuracion() == 1 && user.getEstatus().equals("1")){
             DataInserter.insertarAsistencia(
@@ -717,15 +691,14 @@ private static String bytesToHex(byte[] bytes) {
                         membershipStatusLabel.setText("Membresia Activa");
                         paneleft.setStyle("-fx-background-color: #98ff96;");
                         CompletableFuture.runAsync(() -> {
-                            if(user.getEstatusQR() == 0){
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
                                 if (seleccionado != null) {
                                 enviarFechaYHora(seleccionado, "1");
                                 }
-                            }
-                            
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                //int estatus = DataInserter.obtenerEstatusQR(user.getEstafeta());
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                //ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                               
                             
                         });
                     }
@@ -740,14 +713,14 @@ private static String bytesToHex(byte[] bytes) {
                         membershipStatusLabel.setStyle("-fx-text-fill: black;");
                         
                         CompletableFuture.runAsync(() -> {
-                            if(user.getEstatusQR() == 0){
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
                                 if (seleccionado != null) {
                                 enviarFechaYHora(seleccionado, "1");
                                 }
-                            }
+                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                
+                                //ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                             
                         });
                     }
                     ///CUANDO YA ESTA CADUCA LA MEMBRESIA
@@ -769,10 +742,13 @@ private static String bytesToHex(byte[] bytes) {
  
                 }
             }
+            
+            
             return true;
-            }
+            
         }
     }
+
     
     if (!encontrado) {
             Platform.runLater(() -> {
@@ -788,6 +764,8 @@ private static String bytesToHex(byte[] bytes) {
                     mediaPlayerError.play();
                     mediaPlayerError.seek(Duration.ZERO);
                 }
+                
+                enviarFechaYHora(seleccionado, "0");
             });
         }
    
@@ -795,8 +773,8 @@ private static String bytesToHex(byte[] bytes) {
     return false;  // Solo necesitas un return false al final
 }
     
-    
-    
+  
+    /*
     public static void enviarUno(SerialPort puerto, String dato) {
     if (puerto == null || !puerto.isOpen()) {
         System.out.println("Error: El puerto no está disponible.");
@@ -821,7 +799,8 @@ private static String bytesToHex(byte[] bytes) {
         e.printStackTrace();
     }
 }
-
+*/
+    
     
     public class FechaHora{
         public static String getFecha(){
@@ -838,59 +817,127 @@ private static String bytesToHex(byte[] bytes) {
             return ahora.format(formatter);
         }
     }
+
     
-    public void enviarFechaYHora(SerialPort puerto, String estatusQr) {
+    public static class DatosFechaHora {
+        private String fecha;
+        private String hora;
+        private String estatus;
+
+        public DatosFechaHora(String fecha, String hora, String estatus) {
+            this.fecha = fecha;
+            this.hora = hora;
+            this.estatus = estatus;
+        }
+
+        // Getters opcionales si Gson los necesita
+        public String getFecha() {
+            return fecha;
+        }
+
+        public String getHora() {
+            return hora;
+        }
+        
+        public String getEstatus() {
+            return estatus;
+        }
+    }
+    
+    public void enviarFechaYHora(SerialPort puerto, String estatusqr) {
     if (puerto == null || !puerto.isOpen()) {
         System.out.println("Error: El puerto no está disponible.");
         return;
     }
 
     try {
-        String fechaActual = FechaHora.getFecha(); // Obtiene la fecha
-        String horaActual = FechaHora.getHora();   // Obtiene la hora
+        String fecha = FechaHora.getFecha(); // Obtiene la fecha
+        String hora = FechaHora.getHora();   // Obtiene la hora
+        String estatus = estatusqr;
         
-        // Enviar la fecha primero
-        byte[] fechaBytes = fechaActual.getBytes();
-        int fechaBytesWritten = puerto.writeBytes(fechaBytes, fechaBytes.length);
+        // Crear un objeto con los datos
+        DatosFechaHora datos = new DatosFechaHora(fecha, hora, estatus);
 
-        if (fechaBytesWritten == fechaBytes.length) {
-            System.out.println("Fecha enviada exitosamente: " + fechaActual);
+        // Convertir el objeto a JSON
+        Gson gson = new Gson();
+        String jsonMensaje = gson.toJson(datos) + "\n"; // Agregamos salto de línea
+
+        // Convertimos el JSON en bytes y lo enviamos
+        byte[] mensajeBytes = jsonMensaje.getBytes();
+        int bytesWritten = puerto.writeBytes(mensajeBytes, mensajeBytes.length);
+
+        if (bytesWritten == mensajeBytes.length) {
+            System.out.println("JSON enviado exitosamente: " + jsonMensaje);
         } else {
-            System.out.println("Error al enviar la fecha.");
+            System.out.println("Error al enviar el JSON: " + jsonMensaje);
         }
 
-        Thread.sleep(50); // Pequeña pausa de 50 milisegundos 
-
-        // Enviar la hora después
-        byte[] horaBytes = horaActual.getBytes();
-        int horaBytesWritten = puerto.writeBytes(horaBytes, horaBytes.length);
-
-        if (horaBytesWritten == horaBytes.length) {
-            System.out.println("Hora enviada exitosamente: " + horaActual);
-        } else {
-            System.out.println("Error al enviar la hora.");
-        }
-             
-
-        Thread.sleep(50); // Pequeña pausa de 50 milisegundos 
-
-        // Enviar la hora después
-        byte[] data = estatusQr.getBytes(); // Convierte el String a bytes
-        int bytesWritten = puerto.writeBytes(data, data.length);
-
-        if (bytesWritten == data.length) {
-            System.out.println(estatusQr + " enviado exitosamente");
-        } else {
-            System.out.println("Error al enviar el dato: " + estatusQr);
-        }
-        
-        puerto.flushIOBuffers(); // Limpiar buffers después de enviar ambos datos
+        puerto.flushIOBuffers(); // Limpiar buffers después del envío
 
     } catch (Exception e) {
-        System.out.println("Error al enviar fecha y hora: " + e.getMessage());
+        System.out.println("Error al enviar JSON: " + e.getMessage());
         e.printStackTrace();
     }
 }
+    
+    //HUELLE Y ESTFETA 
+    public static class DatosEstatus {
+        private String Status;
+        private String Acceso;
+
+        public DatosEstatus(String Status, String Acceso) {
+            this.Status = Status;
+            this.Acceso = Acceso;
+            
+        }
+
+        // Getters opcionales si Gson los necesita
+        public String getStatus() {
+            return Status;
+        }
+
+        public String getAcceso() {
+            return Acceso;
+        }
+        
+    }
+    
+    public void enviarEstatus(SerialPort puerto, String Status1, String Acceso1) {
+    if (puerto == null || !puerto.isOpen()) {
+        System.out.println("Error: El puerto no está disponible.");
+        return;
+    }
+
+    try {
+        String Status = Status1; 
+        String Acceso = Acceso1;   
+        
+        
+        // Crear un objeto con los datos
+        DatosEstatus datos = new DatosEstatus(Status, Acceso);
+
+        // Convertir el objeto a JSON
+        Gson gson = new Gson();
+        String Mensaje = gson.toJson(datos) + "\n"; // Agregamos salto de línea
+
+        // Convertimos el JSON en bytes y lo enviamos
+        byte[] mensajeBytes = Mensaje.getBytes();
+        int bytesWritten = puerto.writeBytes(mensajeBytes, mensajeBytes.length);
+
+        if (bytesWritten == mensajeBytes.length) {
+            System.out.println("JSON enviado exitosamente: " + Mensaje);
+        } else {
+            System.out.println("Error al enviar el JSON: " + Mensaje);
+        }
+
+        puerto.flushIOBuffers(); // Limpiar buffers después del envío
+
+    } catch (Exception e) {
+        System.out.println("Error al enviar JSON: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+
 
     
     //FINGERPRINT READER

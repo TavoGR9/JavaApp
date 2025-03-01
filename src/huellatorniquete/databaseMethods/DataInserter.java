@@ -12,6 +12,10 @@ import java.sql.ResultSet;
 import javafx.application.Platform;
 import java.sql.Statement;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class DataInserter {
     public static void insertData(List<User> userData) {
         String deleteSQL = "DELETE FROM DATACLIENT";
@@ -196,6 +200,7 @@ public class DataInserter {
     return false; 
 }
     
+    
     //Obtener estatus
     public static int obtenerEstatusQR(String estafeta) {
     String query = "SELECT ESTATUSQR FROM DATACLIENT WHERE ESTAFETA = ?";
@@ -211,8 +216,52 @@ public class DataInserter {
     } catch (SQLException e) {
         e.printStackTrace();
     }
-    return -1; // Devuelve -1 si el usuario no existe o hay error
+    return -1; 
 }
+    
+    
+    ///CAMBIAR SALIDA
+    ///
+    public static boolean cambiarSalida(String estafeta) {
+    String query = "UPDATE DATACLIENT SET SALIDA = CASE " +
+                   "WHEN SALIDA = 0 THEN 1 " +
+                   "WHEN SALIDA = 1 THEN 0 " +
+                   "ELSE SALIDA END " +
+                   "WHERE ESTAFETA = ?";
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement stmt = connection.prepareStatement(query)) {
+
+        stmt.setString(1, estafeta);
+        int rowsAffected = stmt.executeUpdate(); 
+
+        return rowsAffected > 0; 
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+
+    return false; 
+}
+    
+    
+    //Obtener SALIDA
+    public static Integer obtenerSalida(String estafeta) {
+    String query = "SELECT SALIDA FROM DATACLIENT WHERE ESTAFETA = ?";
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement stmt = connection.prepareStatement(query)) {
+        
+        stmt.setString(1, estafeta);
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("SALIDA"); // Devuelve el estatus actual
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return -1; 
+}
+    
+ 
 
 
    

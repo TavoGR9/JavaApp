@@ -18,7 +18,7 @@ public class TableCreator {
             + "Titulo VARCHAR(100), "
             + "Duracion INT, "
             + "Precio INT, "
-            + "EstatusQR, "
+            + "EstatusQR INT, "
             + "Huella LONGTEXT"
             + ");";
         try (Connection connection = DatabaseConnection.getConnection();
