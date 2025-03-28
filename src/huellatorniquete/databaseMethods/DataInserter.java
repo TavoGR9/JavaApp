@@ -20,7 +20,7 @@ public class DataInserter {
     public static void insertData(List<User> userData) {
         String deleteSQL = "DELETE FROM DATACLIENT";
         String insertSQL = "INSERT INTO DATACLIENT ("
-            + "Clave, NombreCompleto, Estafeta, IdBodega, FechaInicio, FechaFin, Estatus, Titulo, Duracion, Precio, estatusQR, Huella"
+            + "Clave, NombreCompleto, Estafeta, IdBodega, FechaInicio, FechaFin, Estatus, Titulo, Duracion, Precio, Acceso, Huella"
             + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         try (Connection connection = DatabaseConnection.getConnection();
@@ -55,7 +55,7 @@ public class DataInserter {
                     insertStatement.setString(8, user.getTitulo());
                     insertStatement.setInt(9, user.getDuracion() != null ? user.getDuracion() : 0);
                     insertStatement.setInt(10, user.getPrecio() != null ? user.getPrecio() : 0);
-                    insertStatement.setInt(11, user.getEstatusQR() != null ? user.getEstatusQR() : 0);
+                    insertStatement.setInt(11, user.getAcceso()!= null ? user.getAcceso() : 0);
                     insertStatement.setString(12, user.getHuella());
 
                     insertStatement.addBatch();
@@ -100,7 +100,7 @@ public class DataInserter {
             user.setDuracion(String.valueOf(resultSet.getInt("Duracion")));
             user.setPrecio(String.valueOf(resultSet.getInt("Precio")));
             user.setHuella(resultSet.getString("Huella"));
-            user.setEstatusQR(String.valueOf(resultSet.getInt("EstatusQR")));
+            user.setAcceso(String.valueOf(resultSet.getInt("Acceso")));
             
 
             userList.add(user);
@@ -177,40 +177,43 @@ public class DataInserter {
     }
     return false; // No existe
 }
+
     
     
     ///CAMBIAR ESTATUS
     public static boolean cambiarEsatusQR(String estafeta) {
-    String query = "UPDATE DATACLIENT SET ESTATUSQR = CASE " +
-                   "WHEN ESTATUSQR = 0 THEN 1 " +
-                   "WHEN ESTATUSQR = 1 THEN 0 " +
-                   "ELSE ESTATUSQR END " +
+    String query = "UPDATE DATACLIENT SET ACCESO = CASE " +
+                   "WHEN ACCESO = 0 THEN 1 " + // Si es 1 o 0, lo cambia a 2
+                   "WHEN ACCESO = 1 THEN 0 " +       // Si es 2, lo cambia a 0
+                   "ELSE ACCESO END " +             // Si no es ninguno, lo deja igual
                    "WHERE ESTAFETA = ?";
+
     try (Connection connection = DatabaseConnection.getConnection();
          PreparedStatement stmt = connection.prepareStatement(query)) {
 
         stmt.setString(1, estafeta);
         int rowsAffected = stmt.executeUpdate(); 
 
-        return rowsAffected > 0; 
+        return rowsAffected > 0; // Devuelve true si al menos una fila fue actualizada
     } catch (SQLException e) {
         e.printStackTrace();
     }
 
-    return false; 
+    return false; // Devuelve false si hubo un error o no se actualizó nada
 }
+
     
     
     //Obtener estatus
     public static int obtenerEstatusQR(String estafeta) {
-    String query = "SELECT ESTATUSQR FROM DATACLIENT WHERE ESTAFETA = ?";
+    String query = "SELECT ACCESO FROM DATACLIENT WHERE ESTAFETA = ?";
     try (Connection connection = DatabaseConnection.getConnection();
          PreparedStatement stmt = connection.prepareStatement(query)) {
         
         stmt.setString(1, estafeta);
         try (ResultSet rs = stmt.executeQuery()) {
             if (rs.next()) {
-                return rs.getInt("ESTATUSQR"); // Devuelve el estatus actual
+                return rs.getInt("ACCESO"); // Devuelve el estatus actual
             }
         }
     } catch (SQLException e) {
@@ -218,53 +221,8 @@ public class DataInserter {
     }
     return -1; 
 }
-    
-    
-    ///CAMBIAR SALIDA
-    ///
-    public static boolean cambiarSalida(String estafeta) {
-    String query = "UPDATE DATACLIENT SET SALIDA = CASE " +
-                   "WHEN SALIDA = 0 THEN 1 " +
-                   "WHEN SALIDA = 1 THEN 0 " +
-                   "ELSE SALIDA END " +
-                   "WHERE ESTAFETA = ?";
-    try (Connection connection = DatabaseConnection.getConnection();
-         PreparedStatement stmt = connection.prepareStatement(query)) {
 
-        stmt.setString(1, estafeta);
-        int rowsAffected = stmt.executeUpdate(); 
-
-        return rowsAffected > 0; 
-    } catch (SQLException e) {
-        e.printStackTrace();
-    }
-
-    return false; 
-}
-    
-    
-    //Obtener SALIDA
-    public static Integer obtenerSalida(String estafeta) {
-    String query = "SELECT SALIDA FROM DATACLIENT WHERE ESTAFETA = ?";
-    try (Connection connection = DatabaseConnection.getConnection();
-         PreparedStatement stmt = connection.prepareStatement(query)) {
-        
-        stmt.setString(1, estafeta);
-        try (ResultSet rs = stmt.executeQuery()) {
-            if (rs.next()) {
-                return rs.getInt("SALIDA"); // Devuelve el estatus actual
-            }
-        }
-    } catch (SQLException e) {
-        e.printStackTrace();
-    }
-    return -1; 
-}
-    
- 
-
-
-   
+  
 }
 
 

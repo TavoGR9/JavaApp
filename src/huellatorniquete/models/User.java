@@ -40,11 +40,9 @@ public class User {
     @JsonProperty("precio")
     private String precio;
     
-    @JsonProperty("estatusQR")
-    private String estatusQR;
+    @JsonProperty("Acceso")
+    private String Acceso;
     
-    @JsonProperty("salida")
-    private String salida;
     
 
     private Fmd BinHuella;
@@ -63,8 +61,7 @@ public class User {
             ", titulo='" + titulo + '\'' +
             ", duracion='" + duracion + '\'' +
             ", precio='" + precio + '\'' +
-            ", estatusQR='" + estatusQR + '\'' +
-            ", salida='" + salida + '\'' +
+            ", Acceso='" + Acceso + '\'' +
             '}';
     }
 
@@ -127,12 +124,12 @@ public class User {
         }
     }
     
-    public Integer getEstatusQR() {
-        if (estatusQR == null || estatusQR.isEmpty()) {
+    public Integer getAcceso() {
+        if (Acceso == null || Acceso.isEmpty()) {
             return null;
         }
         try {
-            return Integer.parseInt(estatusQR);
+            return Integer.parseInt(Acceso);
         } catch (NumberFormatException e) {
             return null;
         }
@@ -142,16 +139,7 @@ public class User {
         return BinHuella;
     }
     
-    public Integer getSalida() {
-        if (salida == null || salida.isEmpty()) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(salida);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
+   
     
     
     
@@ -208,17 +196,15 @@ public class User {
         this.precio = precio;
     }
     
-    public void setEstatusQR(String estatusQR) {
-        this.estatusQR = estatusQR;
+    public void setAcceso(String Acceso) {
+        this.Acceso = Acceso;
     }
 
     public void setHuellaFmd(Fmd huella) {
         this.BinHuella = huella;
     }
     
-    public void setSalida(String salida) {
-        this.salida = salida;
-    }
+    
     
     
 }

@@ -48,8 +48,9 @@ import javafx.util.Duration;
 import javax.swing.SwingWorker;
 import static spark.Spark.*;
 import com.google.gson.Gson;
-
 import huellatorniquete.databaseMethods.ScheduledTaskManager;
+
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -83,6 +84,7 @@ public class MainController {
         private String idSucursal = "";
         private boolean serviceStarted = false;
         private Stage stage;  // Atributo para almacenar la referencia del Stage
+        private String estafeta;
     
     @FXML
     private Label labelMotivacion;
@@ -124,16 +126,14 @@ public class MainController {
     @FXML
     public void initialize() { 
         
-        
-        //ScheduledTaskManager.iniciarActualizacionPeriodica();//actualizacion periodica 
+        ScheduledTaskManager.iniciarEliminacionDiaria(); //Eliminación periodica
         
         buscarTextField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (!newValue.matches("\\d*")) {
                 buscarTextField.setText(newValue.replaceAll("[^\\d]", ""));
             }
         });
-        
-        
+        //getReaders();
         getFrase();
         labelMotivacion.setText(frase);
        
@@ -143,8 +143,6 @@ public class MainController {
         convertHuellas(userData);
         compareFingerprint(userData);
 
-       // System.out.println("Lista con fmd: "+userData);
-       // System.out.println("Tamaño de lista FMD: "+userData.size());
         
         getPort();
     
@@ -190,8 +188,7 @@ public class MainController {
         // Agregar manejador para el evento de cierre de la ventana
         stage.setOnCloseRequest((WindowEvent event) -> {
             // Aquí cerramos el servidor que escucha en el puerto 4567
-            //stopWebService();
-           // ScheduledTaskManager.detenerActualizacion();
+            ScheduledTaskManager.detenerTareaProgramada();
             closePort();
         });
         });
@@ -210,7 +207,6 @@ public class MainController {
         if (port.getDescriptivePortName().contains("CP210x")) {
             seleccionado = port;
             seleccionado.setBaudRate(115200);
-            // Agregar estas configuraciones
             seleccionado.setNumDataBits(8);
             seleccionado.setNumStopBits(1);
             seleccionado.setParity(SerialPort.NO_PARITY);
@@ -219,17 +215,17 @@ public class MainController {
                 System.out.println("❌ Error al abrir el puerto");
                 return;
             }
-            // Añadir un retraso para permitir que el dispositivo termine su inicialización
             
-                //Thread.sleep(1000);  // Espera de 1 segundo
-                //seleccionado.clearDTR();  // Limpiar línea DTR si es necesario
-                seleccionado.flushIOBuffers();  // Vaciar los buffers de entrada/salida
+            seleccionado.flushIOBuffers(); // Vaciar buffers antes de empezar
             
-
             System.out.println("✅ Puerto seleccionado: " + seleccionado.getSystemPortName());
             
-            // Buffer para acumular datos
+            // Buffer para datos acumulados
             StringBuilder dataBuffer = new StringBuilder();
+            String[] tipoAccion = new String[1];
+            //StringBuilder idBuffer = new StringBuilder();
+            boolean[] esperandoID = {false}; // Estado para saber si esperamos un ID después de "Entrada"
+            
             
             seleccionado.addDataListener(new SerialPortDataListener() {
                 @Override
@@ -242,39 +238,71 @@ public class MainController {
                     byte[] buffer = new byte[seleccionado.bytesAvailable()];
                     int bytesRead = seleccionado.readBytes(buffer, buffer.length);
                     
-                    if (bytesRead > 0) {
-                        try {
-                            // Usar UTF-8 explícitamente
-                            String receivedData = new String(buffer, 0, bytesRead, "UTF-8");
-                            
-                            // Ignorar mensajes del sistema y caracteres de control
-                            if (receivedData.contains("GM65") || receivedData.equals("?")) {
-                                return;
-                            }
-                            
-                            // Acumular datos hasta encontrar un delimitador
-                            dataBuffer.append(receivedData);
-                            
-                            // Si encontramos un delimitador (CR o LF), procesamos los datos
-                            if (receivedData.contains("\n") || receivedData.contains("\r")) {
-                                String completeData = dataBuffer.toString();
-                                String cleanId = cleanAndValidateId(completeData);
-                                
-                                if (cleanId != null) {
-                                    System.out.println("📩 ID original: " + completeData);
-                                    System.out.println("🧹 ID limpio: " + cleanId);
-                                    processUserQr(cleanId);
-                                } else {
-                                    System.out.println("❌ ID inválido recibido: " + completeData);
-                                }
-                                
-                                // Limpiar el buffer después de procesar
-                                dataBuffer.setLength(0);
-                            }
-                        } catch (UnsupportedEncodingException e) {
-                            System.err.println("Error de codificación: " + e.getMessage());
-                        }
+                   if (bytesRead > 0) {
+    try {
+        
+        String receivedData = new String(buffer, 0, bytesRead, "UTF-8");
+
+        // Ignorar mensajes irrelevantes
+        if (receivedData.contains("GM65") || receivedData.equals("?")) {
+            return;
+        }
+
+        // Acumular datos en el buffer
+        dataBuffer.append(receivedData);
+
+        // Verificar si hay líneas completas en el buffer
+        int newLineIndex;
+        while ((newLineIndex = dataBuffer.indexOf("\n")) != -1) {
+            // Extraer la línea completa
+            String line = dataBuffer.substring(0, newLineIndex).trim();
+            dataBuffer.delete(0, newLineIndex + 1); // Eliminar la línea procesada
+
+            if (line.isEmpty()) continue;
+
+            System.out.println("📩 Dato recibido: " + line);
+            
+            if(line.equals("QR Caducado")){
+                QRcaduco();
+                continue;
+            }
+
+            if(line.equals("No entro") ||  line.equals("No salio")){
+             System.out.println("NO INGRESO EL USUARIO O NO SALIO");
+                continue;   
+            }else if(line.equals("Entro")){
+                Actualizacion(); 
+                continue; 
+            } else if(line.equals("Salio")){
+                ActualizacionSalida();
+                continue;
+            }
+            
+            
+            if (line.equals("A") || line.equals("S")) {
+                System.out.println("🟢 Se detectó '" + line + "', esperando ID...");
+                esperandoID[0] = true;
+                tipoAccion[0] = line; // Guardar si es "A" o "S"
+            } else if (esperandoID[0]) {
+                // Se recibió el ID después de "A" o "S"
+                String cleanId = cleanAndValidateId(line);
+                if (cleanId != null) {
+                    System.out.println("🔹 ID limpio: " + cleanId);
+                    if ("A".equals(tipoAccion[0])) {
+                        processUserQr(cleanId);
+                    } else {
+                        processUserQrSalida(cleanId);
                     }
+                } else {
+                    System.out.println("❌ ID inválido recibido: " + line);
+                } 
+                esperandoID[0] = false; // Reiniciar estado
+            }
+        }
+    } catch (UnsupportedEncodingException e) {
+        System.err.println("Error de codificación: " + e.getMessage());
+    }
+}
                 }
             });
             break;
@@ -285,6 +313,7 @@ public class MainController {
         System.out.println("⚠ No se encontró ningún puerto USB-SERIAL");
     }
 }
+
 
 // Método para cerrar el puerto correctamente cuando sea necesario
 public void closePort() {
@@ -382,6 +411,142 @@ private static String bytesToHex(byte[] bytes) {
     
     
     
+    public boolean Actualizacion(){
+        ApiService.InsertarAsistencia(estafeta, idSucursal);
+        ApiService.CambiarEstatus(estafeta, idSucursal);
+        DataInserter.cambiarEsatusQR(estafeta);
+        
+        System.out.println("SE ACTUALIZO EL USUARIO ");
+        return false;
+    }
+    
+    public boolean ActualizacionSalida(){
+        ApiService.CambiarEstatus(estafeta, idSucursal);
+        DataInserter.cambiarEsatusQR(estafeta);
+        
+        System.out.println("SE ACTUALIZO EL USUARIO SALIDA ");
+        return false;
+    }
+    
+    ///QR INVALIDO O CADUCADO
+    
+    public boolean QRcaduco(){
+        for(User user : userData){
+           if (user.getEstafeta().equalsIgnoreCase(estafeta)){
+               Image image = new Image("/huellatorniquete/images/usuario.jpg");
+               
+
+                   Platform.runLater(() -> {
+                       userPhotoImageView.setImage(image);
+                       nameLabel.setText(user.getNombreCompleto());
+                       branchLabel.setText(user.getIdBodega());
+                       membershipLabel.setText(user.getTitulo());
+                       durationLabel.setText(user.getDuracion().toString());
+                       startDateLabel.setText(user.getFechaInicio());
+                       endDateLabel.setText(user.getFechaFin());
+                       
+                       membershipStatusLabel.setText("EL QR A CADUCADO");
+                       paneleft.setStyle("-fx-background-color: red;");
+                       
+                       if (mediaPlayerError != null) {
+                        mediaPlayerError.play();
+                        mediaPlayerError.seek(Duration.ZERO);
+                       }
+                       
+                        
+                   });
+                   return false;
+               
+               
+           }
+       } 
+        return false;
+    }
+    
+    
+    public boolean processUserSalida(String id){
+        boolean encontrado = false;
+       
+       System.out.println("Hola si esta entrando perros");
+       System.out.println("El id que pasaron fue: " + id);
+       
+       if (userData.isEmpty()){
+           System.out.println("Por eso no muestra nada");
+           userData.setAll(DataInserter.geth2InfoUser());
+       }
+       // Ahora procesamos los datos independientemente de si estaban vacíos o no
+       for(User user : userData){
+           if (user.getEstafeta().equalsIgnoreCase(id)){
+               Image image = new Image("/huellatorniquete/images/usuario.jpg");
+               
+               
+               int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
+               System.out.println("Estatus actual en BD: " + estatusActual);
+               
+               
+               if (estatusActual == 1) {
+                   System.out.println("Usuario en estado de salida, procesando...");
+
+                   Platform.runLater(() -> {
+                       userPhotoImageView.setImage(image);
+                       nameLabel.setText(user.getNombreCompleto());
+                       branchLabel.setText(user.getIdBodega());
+                       membershipLabel.setText(user.getTitulo());
+                       durationLabel.setText(user.getDuracion().toString());
+                       startDateLabel.setText(user.getFechaInicio());
+                       endDateLabel.setText(user.getFechaFin());
+                       
+                       membershipStatusLabel.setText("Salida");
+                       paneleft.setStyle("-fx-background-color: #00AAE4;");
+                       
+                       if(mediaPlayerSuccess != null){
+                            mediaPlayerSuccess.play();
+                            mediaPlayerSuccess.seek(Duration.ZERO);
+                       }
+                       
+                       CompletableFuture.runAsync(() -> {
+                           if(seleccionado != null){
+                            enviarEstatus(seleccionado, "OK", "0");
+                        }
+                        //insersion o cambio de datos
+                        estafeta = user.getEstafeta();
+                        System.out.println("Estafeta guardada: "+estafeta);
+                        
+                        });
+                        
+                   });
+                   return false;
+               }
+               
+           }
+       }
+       
+       if(!encontrado){
+           Platform.runLater(() -> {
+               nameLabel.setText("No encontrado");
+               branchLabel.setText("No encontrado");
+               membershipLabel.setText("No encontrado");
+               durationLabel.setText("No encontrado");
+               startDateLabel.setText("No encontrado");
+               endDateLabel.setText("No encontrado");
+               membershipStatusLabel.setText("Sin Membresia");
+               paneleft.setStyle("-fx-background-color: #E1E1E1;");
+               
+               if (mediaPlayerError != null) {
+                    mediaPlayerError.play();
+                    mediaPlayerError.seek(Duration.ZERO);
+                }
+               
+                CompletableFuture.runAsync(() -> {
+                    if(seleccionado != null){
+                        enviarEstatus(seleccionado, "FAIL", "1");
+                    }
+                });
+            });
+       }
+       return false;
+    }
+    
    public boolean processUserById(String id){
        boolean encontrado = false;
        
@@ -397,30 +562,37 @@ private static String bytesToHex(byte[] bytes) {
            if (user.getEstafeta().equalsIgnoreCase(id)){
                Image image = new Image("/huellatorniquete/images/usuario.jpg");
                
+               
+               
                int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
                System.out.println("Estatus actual en BD: " + estatusActual);
                boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
-               
-               
                
                if(estatusActual == 1){
                    Platform.runLater(() -> {
                        userPhotoImageView.setImage(image);
                        nameLabel.setText(user.getNombreCompleto());
-                       membershipStatusLabel.setText("Salida");
-                       paneleft.setStyle("-fx-background-color: #00AAE4;");
+                       branchLabel.setText(user.getIdBodega());
+                       membershipLabel.setText(user.getTitulo());
+                       durationLabel.setText(user.getDuracion().toString());
+                       startDateLabel.setText(user.getFechaInicio());
+                       endDateLabel.setText(user.getFechaFin());
+                       
+                       membershipStatusLabel.setText("El usuario ya esta dentro");
+                       paneleft.setStyle("-fx-background-color: #FFA500;");
                        
                        if (mediaPlayerError != null) {
                         mediaPlayerError.play();
                         mediaPlayerError.seek(Duration.ZERO);
                         }
                        
+                       CompletableFuture.runAsync(() -> {
                         if(seleccionado != null){
-                            enviarEstatus(seleccionado, "OK", "0");
+                            enviarEstatus(seleccionado, "FAIL", "1");
                         }
-                        //insersion o cambio de datos
-                        DataInserter.cambiarEsatusQR(user.getEstafeta());
-                        ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
+                        
+                        });
+                        
                    });
                    return false;
                }
@@ -428,6 +600,7 @@ private static String bytesToHex(byte[] bytes) {
                if (asistenciaExistente) {
                 // Si la asistencia ya fue utilizada
                 Platform.runLater(() -> {
+                    userPhotoImageView.setImage(image);
                     nameLabel.setText(user.getNombreCompleto());
                     branchLabel.setText(user.getIdBodega());
                     membershipLabel.setText(user.getTitulo());
@@ -436,14 +609,21 @@ private static String bytesToHex(byte[] bytes) {
                     endDateLabel.setText(user.getFechaFin());
 
                     membershipStatusLabel.setText("Membresía ya utilizada");
-                    paneleft.setStyle("-fx-background-color: #2271b3;");
-                    membershipStatusLabel.setStyle("-fx-text-fill: white;");
+                    paneleft.setStyle("-fx-background-color: #FFA500;");
         
                     if (mediaPlayerError != null) {
                         mediaPlayerError.play();
                         mediaPlayerError.seek(Duration.ZERO);
                     }
-                    enviarEstatus(seleccionado, "FAIL", "0");
+                    
+                    CompletableFuture.runAsync(() -> {
+                        if(seleccionado != null){
+                            enviarEstatus(seleccionado, "FAIL", "1");
+                        }
+                        
+                    });
+                    
+                    
                 });
                 return false;
 
@@ -484,15 +664,20 @@ private static String bytesToHex(byte[] bytes) {
                             paneleft.setStyle("-fx-background-color: #98ff96;");
                             membershipStatusLabel.setStyle("-fx-text-fill: black;");
                             
-                            CompletableFuture.runAsync(() -> {
-                                if(seleccionado != null){
+                            CompletableFuture.runAsync(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (seleccionado != null) {
                                     enviarEstatus(seleccionado, "OK", "1");
                                 }
-                                //insersion o cambio de datos
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                // Inserción o cambio de datos
+                                
+                                estafeta = user.getEstafeta();
+                                System.out.println("Estafeta guardada: "+estafeta);
+                                
+                            }
                             });
+                            
                         } else if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) <= 3){
                             if(mediaPlayerSuccess != null){
                                 mediaPlayerSuccess.play();
@@ -503,15 +688,20 @@ private static String bytesToHex(byte[] bytes) {
                             paneleft.setStyle("-fx-background-color: yellow;");
                             membershipStatusLabel.setStyle("-fx-text-fill: black;");
                             
-                            CompletableFuture.runAsync(() -> {
-                                if(seleccionado != null){
+                            CompletableFuture.runAsync(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (seleccionado != null) {
                                     enviarEstatus(seleccionado, "OK", "1");
                                 }
-                                //insersion o cambio de datos
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
+                                
+                                estafeta = user.getEstafeta();
+                                System.out.println("Estafeta guardada: "+estafeta);
+                                
+                                
+                            }
                             });
+                            
                         } else if(user.getEstatus().equalsIgnoreCase("0") || user.getDaysBetweenDate(user.getFechaFin()) < 0){
                             if (mediaPlayerError != null) {
                                 mediaPlayerError.play();
@@ -568,111 +758,194 @@ private static String bytesToHex(byte[] bytes) {
        
        return false; //Parar la funcion 
    }
-    
-    
-    
-    
-    
-    
-    
-    
-    public boolean processUserQr(String id) { 
-    boolean encontrado = false;
-    System.out.println("Hola si esta entrando perros A QR");
-    System.out.println("El id que pasaron fue: " + id);
-    
-    
-    if (userData.isEmpty()) {
-        System.out.println("Por eso no muestra nada");
-        userData.setAll(DataInserter.geth2InfoUser());
-    }
-    
-    
-    // Ahora procesamos los datos independientemente de si estaban vacíos o no
-    for (User user : userData) {
-        if (user.getEstafeta().equalsIgnoreCase(id)) {
-            
-            System.out.println("el usuario es: " + user); 
-  
-            int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
-            boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
+   
+   
+   
+   
+   
+   ///////////////////PROCESOS DEL QR ///////// INICIO ////
+   public boolean processUserQrSalida(String id){
+        boolean encontrado = false;
+       
+       System.out.println("Hola si esta entrando perros a salida qr");
+       System.out.println("El id que pasaron fue: " + id);
+       
+       if (userData.isEmpty()){
+           System.out.println("Por eso no muestra nada");
+           userData.setAll(DataInserter.geth2InfoUser());
+       }
+       // Ahora procesamos los datos independientemente de si estaban vacíos o no
+       for(User user : userData){
+           if (user.getEstafeta().equalsIgnoreCase(id)){
+               Image image = new Image("/huellatorniquete/images/usuario.jpg");
+               
+               
+               int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
+               System.out.println("Estatus actual en BD: " + estatusActual);
+               
+               
+               if (estatusActual == 1) {
+                   System.out.println("Usuario en estado de salida, procesando...");
 
-            //System.out.println("Estatus actual en BD: " + estatusActual);
-            //System.out.println("¿Asistencia existente?: " + asistenciaExistente);
-
-            if (estatusActual == 1) {
-            // Si el usuario ya está dentro (estatusQR = 1)
-            Platform.runLater(() -> {
-                nameLabel.setText(user.getNombreCompleto());
-                branchLabel.setText(user.getIdBodega());
-                membershipLabel.setText(user.getTitulo());
-                durationLabel.setText(user.getDuracion().toString());
-                startDateLabel.setText(user.getFechaInicio());
-                endDateLabel.setText(user.getFechaFin());
-                membershipStatusLabel.setText("Salida");
-                paneleft.setStyle("-fx-background-color: #2271b3;");
-                membershipStatusLabel.setStyle("-fx-text-fill: white;");
-        
-                if (mediaPlayerError != null) {
+                   Platform.runLater(() -> {
+                       userPhotoImageView.setImage(image);
+                       nameLabel.setText(user.getNombreCompleto());
+                       branchLabel.setText(user.getIdBodega());
+                       membershipLabel.setText(user.getTitulo());
+                       durationLabel.setText(user.getDuracion().toString());
+                       startDateLabel.setText(user.getFechaInicio());
+                       endDateLabel.setText(user.getFechaFin());
+                       
+                       membershipStatusLabel.setText("Salida");
+                       paneleft.setStyle("-fx-background-color: #00AAE4;");
+                       
+                       if(mediaPlayerSuccess != null){
+                            mediaPlayerSuccess.play();
+                            mediaPlayerSuccess.seek(Duration.ZERO);
+                       }
+                       
+                        CompletableFuture.runAsync(() -> {
+                           if(seleccionado != null){
+                            enviarFechaYHora(seleccionado, "0");
+                        }
+                           
+                        estafeta = user.getEstafeta();
+                         System.out.println("Estafeta guardada: "+estafeta);
+                        
+                        
+                        });
+                        
+                   });
+                   return false;
+               }
+               
+           }
+       }
+       
+       if(!encontrado){
+           Platform.runLater(() -> {
+               nameLabel.setText("No encontrado");
+               branchLabel.setText("No encontrado");
+               membershipLabel.setText("No encontrado");
+               durationLabel.setText("No encontrado");
+               startDateLabel.setText("No encontrado");
+               endDateLabel.setText("No encontrado");
+               membershipStatusLabel.setText("Sin Membresia");
+               paneleft.setStyle("-fx-background-color: #E1E1E1;");
+               
+               if (mediaPlayerError != null) {
                     mediaPlayerError.play();
                     mediaPlayerError.seek(Duration.ZERO);
                 }
-                
-                enviarFechaYHora(seleccionado, "0");
-                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+               
+                CompletableFuture.runAsync(() -> {
+                    if(seleccionado != null){
+                        enviarFechaYHora(seleccionado, "1");
+                    }
+                });
             });
-            return false;
+       }
+       return false;
+    }
+   
+   
+   public boolean processUserQr(String id){
+       boolean encontrado = false;
+       
+       System.out.println("Hola si esta entrando perros");
+       System.out.println("El id que pasaron fue: " + id);
+       
+       if (userData.isEmpty()){
+           System.out.println("Por eso no muestra nada");
+           userData.setAll(DataInserter.geth2InfoUser());
+       }
+       // Ahora procesamos los datos independientemente de si estaban vacíos o no
+       for(User user : userData){
+           if (user.getEstafeta().equalsIgnoreCase(id)){
+               Image image = new Image("/huellatorniquete/images/usuario.jpg");
+               
+               int estatusActual = DataInserter.obtenerEstatusQR(user.getEstafeta());
+               System.out.println("Estatus actual en BD: " + estatusActual);
+               boolean asistenciaExistente = DataInserter.checkAsistenciaExistente(user.getEstafeta(), user.getDuracion());
+               
+               if(estatusActual == 1){
+                   Platform.runLater(() -> {
+                       userPhotoImageView.setImage(image);
+                       nameLabel.setText(user.getNombreCompleto());
+                       branchLabel.setText(user.getIdBodega());
+                       membershipLabel.setText(user.getTitulo());
+                       durationLabel.setText(user.getDuracion().toString());
+                       startDateLabel.setText(user.getFechaInicio());
+                       endDateLabel.setText(user.getFechaFin());
+                       
+                       membershipStatusLabel.setText("El usuario ya esta dentro");
+                       paneleft.setStyle("-fx-background-color: #FFA500;");
+                       
+                       if (mediaPlayerError != null) {
+                        mediaPlayerError.play();
+                        mediaPlayerError.seek(Duration.ZERO);
+                        }
+                       
+                       CompletableFuture.runAsync(() -> {
+                        if(seleccionado != null){
+                            enviarFechaYHora(seleccionado, "0");
+                        }
+                        
+                        });
+                        
+                   });
+                   return false;
+               }
+               
+               if (asistenciaExistente) {
+                // Si la asistencia ya fue utilizada
+                Platform.runLater(() -> {
+                    userPhotoImageView.setImage(image);
+                    nameLabel.setText(user.getNombreCompleto());
+                    branchLabel.setText(user.getIdBodega());
+                    membershipLabel.setText(user.getTitulo());
+                    durationLabel.setText(user.getDuracion().toString());
+                    startDateLabel.setText(user.getFechaInicio());
+                    endDateLabel.setText(user.getFechaFin());
 
-        } 
-            
-         if (asistenciaExistente) {
-        // Si la asistencia ya fue utilizada
-          Platform.runLater(() -> {
-            nameLabel.setText(user.getNombreCompleto());
-            branchLabel.setText(user.getIdBodega());
-            membershipLabel.setText(user.getTitulo());
-            durationLabel.setText(user.getDuracion().toString());
-            startDateLabel.setText(user.getFechaInicio());
-            endDateLabel.setText(user.getFechaFin());
-
-            membershipStatusLabel.setText("Membresía ya utilizada");
-            paneleft.setStyle("-fx-background-color: #2271b3;");
-            membershipStatusLabel.setStyle("-fx-text-fill: white;");
+                    membershipStatusLabel.setText("Membresía ya utilizada");
+                    paneleft.setStyle("-fx-background-color: #FFA500;");
         
-            if (mediaPlayerError != null) {
-                mediaPlayerError.play();
-                mediaPlayerError.seek(Duration.ZERO);
-            }
-            enviarFechaYHora(seleccionado, "0");
-        });
-        return false;
+                    if (mediaPlayerError != null) {
+                        mediaPlayerError.play();
+                        mediaPlayerError.seek(Duration.ZERO);
+                    }
+                    
+                    CompletableFuture.runAsync(() -> {
+                        if(seleccionado != null){
+                            enviarFechaYHora(seleccionado, "0");
+                        }
+                        
+                    });
+                    
+                    
+                });
+                return false;
 
-        } 
-            // Si el usuario tiene estatusQR = 0 y no ha registrado asistencia
-            
-            //INSERTAR ASITENCIA EN VISITA
-            if(user.getDuracion() == 1 && user.getEstatus().equals("1")){
-            DataInserter.insertarAsistencia(
-                user.getClave(), 
-                user.getFechaInicio(), 
-                user.getFechaFin(),
-                user.getDuracion(),
-                user.getEstafeta(), 
-                user.getEstatus());
-            }
-            
-            updateUIWithUser(user);
-            
-            
-            if (user.getEstafeta().equals(id)) {
-                if (user.getEstafeta().equals(id)){
-                    //System.out.println("entrando a la funcion 2" + user);
-                    
-                    Image image = new Image("/huellatorniquete/images/usuario.jpg");
-                    
-                    Platform.runLater(() -> {
-                        // Actualizaciones básicas de UI
+                } 
+               
+               //INSERTAR ASISTENCIA
+               if (user.getDuracion() == 1 && user.getEstatus().equals("1")){
+                   DataInserter.insertarAsistencia(
+                    user.getClave(), 
+                    user.getFechaInicio(), 
+                    user.getFechaFin(),
+                    user.getDuracion(),
+                    user.getEstafeta(), 
+                    user.getEstatus());
+               }
+               
+               updateUIWithUser(user);
+               
+               
+               if (user.getEstafeta().equals(id)){
+                   if(user.getEstafeta().equals(id)){
+                       Platform.runLater(() -> {
                         userPhotoImageView.setImage(image);
                         nameLabel.setText(user.getNombreCompleto());
                         branchLabel.setText(user.getIdBodega());
@@ -681,126 +954,111 @@ private static String bytesToHex(byte[] bytes) {
                         startDateLabel.setText(user.getFechaInicio());
                         endDateLabel.setText(user.getFechaFin());
                         
-                    ///CUANDO FALTA MUCHO TIEMPO PARA QUE LA MEMBRESIA EXPIRE
-                    if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 3) {
-                        if (mediaPlayerSuccess != null){
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                        }
-                        
-                        membershipStatusLabel.setText("Membresia Activa");
-                        paneleft.setStyle("-fx-background-color: #98ff96;");
-                        CompletableFuture.runAsync(() -> {
-                                if (seleccionado != null) {
-                                enviarFechaYHora(seleccionado, "1");
-                                }
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                //int estatus = DataInserter.obtenerEstatusQR(user.getEstafeta());
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
-                                //ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                               
+                        if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) > 3){
+                            if(mediaPlayerSuccess != null){
+                                mediaPlayerSuccess.play();
+                                mediaPlayerSuccess.seek(Duration.ZERO);
+                            }
                             
-                        });
-                    }
-                    ///CUANDO FALTA POCO PARA QUE LA MEMBRESIA EXPIRE
-                    else if (user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) <= 3){
-                        if (mediaPlayerSuccess != null){
-                            mediaPlayerSuccess.play();
-                            mediaPlayerSuccess.seek(Duration.ZERO);
-                        }
-                        membershipStatusLabel.setText("Activo - La membresia finalizara pronto");
-                        paneleft.setStyle("-fx-background-color: yellow;");
-                        membershipStatusLabel.setStyle("-fx-text-fill: black;");
-                        
-                        CompletableFuture.runAsync(() -> {
+                            membershipStatusLabel.setText("Membresia Activa");
+                            paneleft.setStyle("-fx-background-color: #98ff96;");
+                            membershipStatusLabel.setStyle("-fx-text-fill: black;");
+                            
+                            CompletableFuture.runAsync(new Runnable() {
+                            @Override
+                            public void run() {
                                 if (seleccionado != null) {
-                                enviarFechaYHora(seleccionado, "1");
+                                    enviarFechaYHora(seleccionado, "1");
                                 }
-                                DataInserter.cambiarEsatusQR(user.getEstafeta());
-                                ApiService.InsertarAsistencia(user.getEstafeta(), idSucursal);
+                                // Inserción o cambio de datos
+                                estafeta = user.getEstafeta();
+                                System.out.println("Estafeta guardada: "+estafeta);
                                 
-                                //ApiService.CambiarEstatus(user.getEstafeta(), idSucursal);
-                             
-                        });
-                    }
-                    ///CUANDO YA ESTA CADUCA LA MEMBRESIA
-                    else if (user.getEstatus().equalsIgnoreCase("0") || user.getDaysBetweenDate(user.getFechaFin()) < 0){
-                        if (mediaPlayerError != null) {
-                            mediaPlayerError.play();
-                            mediaPlayerError.seek(Duration.ZERO);
+                                
+                            }
+                            });
+                            
+                        } else if(user.getEstatus().equalsIgnoreCase("1") && user.getDaysBetweenDate(user.getFechaFin()) <= 3){
+                            if(mediaPlayerSuccess != null){
+                                mediaPlayerSuccess.play();
+                                mediaPlayerSuccess.seek(Duration.ZERO);
+                            }
+                            
+                            membershipStatusLabel.setText("Activo - La membresia finalizara pronto");
+                            paneleft.setStyle("-fx-background-color: yellow;");
+                            membershipStatusLabel.setStyle("-fx-text-fill: black;");
+                            
+                            CompletableFuture.runAsync(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (seleccionado != null) {
+                                    enviarFechaYHora(seleccionado, "1");
+                                }
+                                // Inserción o cambio de datos
+                                estafeta = user.getEstafeta();
+                                System.out.println("Estafeta guardada: "+estafeta);
+                                
+                                
+                            }
+                            });
+                            
+                        } else if(user.getEstatus().equalsIgnoreCase("0") || user.getDaysBetweenDate(user.getFechaFin()) < 0){
+                            if (mediaPlayerError != null) {
+                                mediaPlayerError.play();
+                                mediaPlayerError.seek(Duration.ZERO);
+                            }
+                            
+                            membershipStatusLabel.setText("Membresia Vencida");
+                            paneleft.setStyle("-fx-background-color: red;");
+                            membershipStatusLabel.setStyle("-fx-color: white;");
+              
+                            CompletableFuture.runAsync(() -> {
+                                if(seleccionado != null){
+                                    enviarFechaYHora(seleccionado, "0");
+                                }
+                            });
                         }
-                        membershipStatusLabel.setText("Membresia Vencida");
-                        paneleft.setStyle("-fx-background-color: red;");
-                        membershipStatusLabel.setStyle("-fx-color: white;");
+                       });
+                       
+                       encontrado = true;
+                       System.out.println("Dias prueba: "+user.getDaysBetweenDate(user.getFechaFin()));
+                       break;
+                   }
+               }
                
-                    }
-                    });
-                    
-                    encontrado = true;
-                    System.out.println("DIAS PRUEBA: " + user.getDaysBetweenDate(user.getFechaFin()));
-                    break;
- 
-                }
-            }
-            
-            
-            return true;
-            
-        }
-    }
-
-    
-    if (!encontrado) {
-            Platform.runLater(() -> {
-                nameLabel.setText("No encontrado");
-                branchLabel.setText("No encontrado");
-                membershipLabel.setText("No encontrado");
-                durationLabel.setText("No encontrado");
-                startDateLabel.setText("No encontrado");
-                endDateLabel.setText("No encontrado");
-                membershipStatusLabel.setText("Sin Membresia");
-                paneleft.setStyle("-fx-background-color: #E1E1E1;");
-                if (mediaPlayerError != null) {
+               return true;
+               
+           }
+       }
+       
+       if(!encontrado){
+           Platform.runLater(() -> {
+               nameLabel.setText("No encontrado");
+               branchLabel.setText("No encontrado");
+               membershipLabel.setText("No encontrado");
+               durationLabel.setText("No encontrado");
+               startDateLabel.setText("No encontrado");
+               endDateLabel.setText("No encontrado");
+               membershipStatusLabel.setText("Sin Membresia");
+               paneleft.setStyle("-fx-background-color: #E1E1E1;");
+               
+               if (mediaPlayerError != null) {
                     mediaPlayerError.play();
                     mediaPlayerError.seek(Duration.ZERO);
                 }
-                
-                enviarFechaYHora(seleccionado, "0");
+               
+                CompletableFuture.runAsync(() -> {
+                    if(seleccionado != null){
+                        enviarFechaYHora(seleccionado, "0");
+                    }
+                });
             });
-        }
+       }
+       
+       
+       return false; //Parar la funcion 
+   }            
    
-
-    return false;  // Solo necesitas un return false al final
-}
-    
-  
-    /*
-    public static void enviarUno(SerialPort puerto, String dato) {
-    if (puerto == null || !puerto.isOpen()) {
-        System.out.println("Error: El puerto no está disponible.");
-        return;
-    }
-    try {
-        // Convertimos el dato a un byte array
-        byte[] data = dato.getBytes(); // Convierte el String a bytes
-        int bytesWritten = puerto.writeBytes(data, data.length);
-
-        if (bytesWritten == data.length) {
-            System.out.println(dato + " enviado exitosamente");
-        } else {
-            System.out.println("Error al enviar el dato: " + dato);
-        }
-
-        Thread.sleep(50);
-        puerto.flushIOBuffers();
-
-    } catch (Exception e) {
-        System.out.println("Error al enviar: " + e.getMessage());
-        e.printStackTrace();
-    }
-}
-*/
-    
     
     public class FechaHora{
         public static String getFecha(){
@@ -940,153 +1198,346 @@ private static String bytesToHex(byte[] bytes) {
 
 
     
-    //FINGERPRINT READER
-    public static Reader getReaders(){
-    Reader reader = null;
-    try {
-        // Crear una instancia de ReaderCollection
-        ReaderCollection readers = UareUGlobal.GetReaderCollection();
-
-        // Actualizar la lista de lectores
-        readers.GetReaders();
-
-        // Asegurarse de que hay al menos un lector
-        if (readers.size() > 0) {
-            // Obtener el primer lector
-            //System.out.println("Hay lectores disponibles");
-            reader = readers.get(0);
-            String Lector = reader.GetDescription().name;
-            //System.out.println("El lector es: "+Lector);
-            reader.Open(Reader.Priority.EXCLUSIVE);
-        }else {
-            //System.out.println("No se encontraron lectores");
-        }
-    }
-    catch (UareUException e) {
-        e.printStackTrace();
-    }
-    return reader;
-}
-  
     
-    public void compareFingerprint(ObservableList<User> userData) {
-    if (userData == null) {
-        System.out.println("⚠ userData es null en compareFingerprint.");
-        return;
+    public static Reader[] getReaders() {
+         System.out.println("Lectores disponibles: ");
+        Reader[] reader = new Reader[1]; // Solo almacenará el lector en la posición 0
+
+        try {
+            // Crear una instancia de ReaderCollection
+            ReaderCollection readers = UareUGlobal.GetReaderCollection();
+            // Actualizar la lista de lectores
+            readers.GetReaders();
+
+            // Imprimir todos los lectores disponibles
+            System.out.println("Lectores disponibles: " + readers.size());
+            for (int i = 0; i < readers.size(); i++) {
+                System.out.println("Lector #" + i + ": " + readers.get(i).GetDescription().name);
+            }
+
+            // Asegurarse de que hay al menos un lector
+            if (readers.size() > 0) {
+                reader[0] = readers.get(0); // Guardar solo el lector en posición 0
+                String lectorNombre = reader[0].GetDescription().name;
+                System.out.println("Usando el lector #0: " + lectorNombre);
+                reader[0].Open(Reader.Priority.EXCLUSIVE);
+            } else {
+                System.out.println("No se encontraron lectores");
+            }
+        } catch (UareUException e) {
+            e.printStackTrace();
+        }
+        return reader;
     }
-        Task<Void> task = new Task<Void>() {
+
+   
+
+    public void compareFingerprint(ObservableList<User> userData){
+        if(userData == null){
+            System.out.println("userData es null en compareFingerprint");
+        }
+        Task<Void> task = new Task<Void>(){
             @Override
             protected Void call() throws Exception {
-                try {
-                    ReaderCollection readers = UareUGlobal.GetReaderCollection();
-                    readers.GetReaders();
-                    
-                    if (readers.size() > 0) {
-                        Reader reader = readers.get(0);
-                        reader.Open(Reader.Priority.EXCLUSIVE);
-                        
-                        while (!isCancelled()) {
-                            try {
-                                Fmd capturedFmd = capturarHuella(reader);
-                                System.out.println("Huella capturada: " + (capturedFmd != null ? "OK" : "NULL"));
+               try{
+                   ReaderCollection readers = UareUGlobal.GetReaderCollection();
+                   readers.GetReaders();
+                  // readerList.addAll(readers);
+                   System.out.println("Lectores disponibles: " + readers.size() );
+                   
+                   //Comprobar si hay al menos dos lectores disponibles
+                   if(!readers.isEmpty()){
+                       //Obtenemos lod primeros lectores
+                       Reader entrada = readers.get(0);
+                       Reader salida = readers.get(1);
+                       
+                       System.out.println("Lector de entrada serial: " + entrada.GetDescription().serial_number);
+                       System.out.println("Lector de salida serial: " + salida.GetDescription().serial_number);
+                       
+                       entrada.Open(Reader.Priority.EXCLUSIVE);
+                       System.out.println("✅ Lector de entrada abierto correctamente.");
 
+                       salida.Open(Reader.Priority.EXCLUSIVE);
+                       System.out.println("✅ Lector de salida abierto correctamente.");
 
-                                if (capturedFmd != null) {
-                                    boolean huellaEncontrada = false;
-                                    for (User user : userData) {
-                                        if (user.getHuellaFmd() != null) {
-                                            try {
-                                                int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
-                                                int threshold = 100000;
-
-                                                if (score < threshold) {
-                                                    System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombreCompleto());
-                                                    System.out.println("Usuario completo: "+user);
-                                                    System.out.println("DIAS DE DIFERENCIA:" +user.getDaysBetweenDate(user.getFechaFin()));
-                                                    System.out.println("STATUS:"+user.getEstatus());
-                                                    System.out.println("ESTAFETA: "+user.getEstafeta());
-                                                    huellaEncontrada = true;
-                                                    
-                                                    //actualizarDatosUsuario(user);
-                                                    processUserById(user.getEstafeta());
-                                                    
-                                                    //Thread.sleep(2000);
-
-                                                    break;
-                                                }
-                                            } catch (UareUException e) {
-                                                System.err.println("Error al comparar huellas: " + e.getMessage());
-                                            }
-                                        }
-                                    }
-                                    if (!huellaEncontrada) {
-                                        //System.out.println("No se encontró ninguna huella coincidente.");
-                                        Platform.runLater(() -> {
-                                            nameLabel.setText("No encontrado");
-                                            branchLabel.setText("No encontrado");
-                                            membershipLabel.setText("No encontrado");
-                                            durationLabel.setText("No encontrado");
-                                            startDateLabel.setText("No encontrado");
-                                            endDateLabel.setText("No encontrado");
-                                            membershipStatusLabel.setText("Sin Membresia");
-                                            paneleft.setStyle("-fx-background-color: #E1E1E1;");
-                                            if (mediaPlayerError != null) {
-                                                mediaPlayerError.play();
-                                                mediaPlayerError.seek(Duration.ZERO);
-
-                                            }
-                                        });
-                                        Thread.sleep(1000);
-                                    }
-                                } else {
-                                    //System.out.println("No se pudo capturar la huella.");
-                                    Thread.sleep(500);
-                                }
-                            } catch (Exception e) {
-                                System.err.println("Error en el ciclo de captura: " + e.getMessage());
-                                Thread.sleep(1000);
-                            }
-                        }
-                        
-                        reader.Close();
-                    } else {
-                        //System.out.println("No se encontraron lectores de huellas dactilares.");
-                    }
-                } catch (UareUException e) {
-                    //System.err.println("Error en esto: " + e.getMessage());
-                }
-                return null;
+                       
+                       //Hilo para captura y comparación con lector de entrada
+                       Thread hiloEntrada = new Thread(() -> {
+                           try {
+                               System.out.println("ENTRO A HILO DE ENTRADA");
+                               procesarHuella(entrada, userData, "entrada" );
+                           }catch (Exception e){
+                               System.err.println("Error en hilo de entrada: " + e.getMessage());
+                           }
+                       });
+                       
+                       
+                       //Hilo para captura y comparación de salida
+                       Thread hiloSalida = new Thread(() -> {
+                           try {
+                               System.out.println("ENTRO A HILO DE SALIDA");
+                               procesarHuella(salida,userData,"salida");
+                           }catch (Exception e){
+                               System.err.println("Error en hilo de entrada: " + e.getMessage());
+                           }
+                       });
+                       
+                       //Iniciar los hilos 
+                       hiloEntrada.start();
+                       hiloSalida.start();
+                       
+                       //Esperar a que los hilos terminen antes de cerrar los lectores
+                       hiloEntrada.join();
+                       hiloSalida.join();
+                       
+                      entrada.Close();
+                       salida.Close();
+                       
+                       
+                   }else{
+                       System.out.println("No se encontraron lectores disponibles");
+                   }
+                   
+               }catch (UareUException e){
+                   System.err.println("Error de la inicialización: "+ e.getMessage());
+               }
+             return null;
             }
+          
         };
-        
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
     }
     
-
-    public static Fmd capturarHuella(Reader reader) {
- 
-        
-        try {
+    
+    // Método para capturar huella y compararla
+private void procesarHuella(Reader reader, ObservableList<User> userData, String tipoLector) {
+    try {
+        System.out.println("Iniciando captura en lector: " + reader.GetDescription().name);
+        while (!Thread.currentThread().isInterrupted()) {
+            System.out.println("Esperando huella en lector: " + reader.GetDescription().name);
             Reader.CaptureResult captureResult = reader.Capture(
                 Fid.Format.ANSI_381_2004,
                 Reader.ImageProcessing.IMG_PROC_DEFAULT,
                 500,
-                -1
+                30000
             );
             
-            if (captureResult != null && captureResult.quality == Reader.CaptureQuality.GOOD) {
-                return UareUGlobal.GetEngine().CreateFmd(
-                    captureResult.image,
-                    Fmd.Format.ANSI_378_2004
-                );
+            if (captureResult == null) {
+                System.out.println("⚠ No se recibió un resultado de captura.");
+                continue;
             }
-        } catch (UareUException e) {
-            System.err.println("Error al capturar la huella: " + e.getMessage());
+
+            if (captureResult != null && captureResult.quality == Reader.CaptureQuality.GOOD) {
+                System.out.println("Huella capturada en: " + reader.GetDescription().name);
+                Fmd capturedFmd = UareUGlobal.GetEngine().CreateFmd(captureResult.image, Fmd.Format.ANSI_378_2004);
+                compararHuella(capturedFmd, userData, tipoLector);
+            }
+
+            Thread.sleep(100); // Pequeña pausa entre intentos de captura
         }
-        return null;
+    } catch (UareUException | InterruptedException e) {
+        System.err.println("Error en el ciclo de captura en " + reader.GetDescription().name + ": " + e.getMessage());
     }
+}
+
+
+
+///Comparar huellas
+private void compararHuella(Fmd capturedFmd, ObservableList<User> userData, String tipoLector){
+    if (capturedFmd != null) {
+                                System.out.println("Huella capturada: OK");
+                                boolean huellaEncontrada = false;
+
+                                for (User user : userData) {
+                                    if (user.getHuellaFmd() != null) {
+                                        try {
+                                            int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
+                                            int threshold = 100000;
+
+                                            if (score < threshold) {
+                                                System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombreCompleto());
+                                                huellaEncontrada = true;
+                                                
+                                                // Process the matched user
+                                                //processUserById(user.getEstafeta());
+                                                // Diferenciar la acción según el lector
+                                                if ("entrada".equals(tipoLector)) {
+                                                    processUserById(user.getEstafeta());
+                                                } else if ("salida".equals(tipoLector)) {
+                                                    processUserSalida(user.getEstafeta());
+                                                }
+                                                break;
+                                            }
+                                        } catch (UareUException e) {
+                                            System.err.println("Error al comparar huellas: " + e.getMessage());
+                                        }
+                                    }
+                                }
+
+                                if (!huellaEncontrada) {
+                                    Platform.runLater(() -> {
+                                        // Actualizar UI con el estado de no encontrado
+                                        nameLabel.setText("No encontrado");
+                                        branchLabel.setText("No encontrado");
+                                        membershipLabel.setText("No encontrado");
+                                        durationLabel.setText("No encontrado");
+                                        startDateLabel.setText("No encontrado");
+                                        endDateLabel.setText("No encontrado");
+                                        membershipStatusLabel.setText("Sin Membresía");
+                                        paneleft.setStyle("-fx-background-color: #E1E1E1;");
+                                        if (mediaPlayerError != null) {
+                                            mediaPlayerError.play();
+                                            mediaPlayerError.seek(Duration.ZERO);
+                                        }
+                                    });
+                                    //Thread.sleep(1000);
+                                }
+                            } else {
+                                System.out.println("❌ No se pudo capturar la huella.");
+                                //Thread.sleep(500); // Retraso para intentar nuevamente
+                            }
+}
+    
+    
+    
+    
+    
+    
+    
+  /*  
+    public void compareFingerprint(ObservableList<User> userData) {
+    if (userData == null) {
+        System.out.println("⚠ userData es null en compareFingerprint.");
+        return;
+    }
+    
+    Task<Void> task = new Task<Void>() {
+        @Override
+        protected Void call() throws Exception {
+            try {
+                ReaderCollection readers = UareUGlobal.GetReaderCollection();
+                readers.GetReaders();
+                System.out.println("Lectores disponibles: " + readers.size());
+
+                if (readers.size() > 0) {
+                    Reader reader = readers.get(1);
+                    //Reader salida = readers.get(1);
+                    
+                    System.out.println("Lectores disponibles serial: " + reader.GetDescription().serial_number);
+                    System.out.println("Lectores disponibles serial: " + reader.GetDescription().id);
+                    reader.Open(Reader.Priority.EXCLUSIVE);
+
+                    System.out.println("Estado de isCancelled() antes del while: " + isCancelled());
+
+                    while (!isCancelled()) {
+                        System.out.println("Dentro del while... esperando captura.");
+                        try {
+                            
+                            long startTime = System.currentTimeMillis();
+                            Fmd capturedFmd = capturarHuella(reader);
+                            long endTime = System.currentTimeMillis();
+                            
+                            System.out.println("Tiempo de captura: " + (endTime - startTime) + "ms");
+
+                            if (capturedFmd != null) {
+                                System.out.println("Huella capturada: OK");
+                                boolean huellaEncontrada = false;
+
+                                for (User user : userData) {
+                                    if (user.getHuellaFmd() != null) {
+                                        try {
+                                            int score = UareUGlobal.GetEngine().Compare(capturedFmd, 0, user.getHuellaFmd(), 0);
+                                            int threshold = 100000;
+
+                                            if (score < threshold) {
+                                                System.out.println("Se encontró una huella coincidente para el usuario: " + user.getNombreCompleto());
+                                                huellaEncontrada = true;
+                                                
+                                                // Process the matched user
+                                                processUserById(user.getEstafeta());
+                                                break;
+                                            }
+                                        } catch (UareUException e) {
+                                            System.err.println("Error al comparar huellas: " + e.getMessage());
+                                        }
+                                    }
+                                }
+
+                                if (!huellaEncontrada) {
+                                    Platform.runLater(() -> {
+                                        // Actualizar UI con el estado de no encontrado
+                                        nameLabel.setText("No encontrado");
+                                        branchLabel.setText("No encontrado");
+                                        membershipLabel.setText("No encontrado");
+                                        durationLabel.setText("No encontrado");
+                                        startDateLabel.setText("No encontrado");
+                                        endDateLabel.setText("No encontrado");
+                                        membershipStatusLabel.setText("Sin Membresía");
+                                        paneleft.setStyle("-fx-background-color: #E1E1E1;");
+                                        if (mediaPlayerError != null) {
+                                            mediaPlayerError.play();
+                                            mediaPlayerError.seek(Duration.ZERO);
+                                        }
+                                    });
+                                    Thread.sleep(1000);
+                                }
+                            } else {
+                                System.out.println("❌ No se pudo capturar la huella.");
+                                Thread.sleep(500); // Retraso para intentar nuevamente
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error en el ciclo de captura: " + e.getMessage());
+                            Thread.sleep(1000);
+                        }
+                    }
+
+                    reader.Close();
+                } else {
+                    System.out.println("⚠ No se encontraron lectores de huellas dactilares.");
+                }
+            } catch (UareUException e) {
+                System.err.println("Error en la inicialización: " + e.getMessage());
+            }
+            return null;
+        }
+    };
+
+    Thread thread = new Thread(task);
+    thread.setDaemon(true);
+    thread.start();
+}
+
+    
+   
+   
+public static Fmd capturarHuella(Reader reader) {
+    try {
+        // Intentar capturar la huella
+        Reader.CaptureResult captureResult = reader.Capture(
+            Fid.Format.ANSI_381_2004,  // Formato para la huella
+            Reader.ImageProcessing.IMG_PROC_DEFAULT,  // Configuración de procesamiento de la imagen
+            500,  // Tiempo de espera en milisegundos
+            30000    // Número de intentos (-1 para ilimitados)
+        );
+
+        if (captureResult != null && captureResult.quality == Reader.CaptureQuality.GOOD) {
+            System.out.println("Huella capturada en: "+reader.GetDescription());
+            return UareUGlobal.GetEngine().CreateFmd(
+                
+                captureResult.image,  // Usar la imagen capturada para crear el FMD
+                Fmd.Format.ANSI_378_2004  // Formato de huella que estamos utilizando
+            );
+        }
+    } catch (UareUException e) {
+        System.err.println("Error al capturar la huella: " + e.getMessage());
+    }
+    return null;  // Retornar null si no se pudo capturar la huella
+}
+
+ */   
+
     
     
     
@@ -1215,20 +1666,18 @@ public void recargarControlador() {
             }
         });
     
-     getFrase();
-     labelMotivacion.setText(frase);
+    getFrase();
+    labelMotivacion.setText(frase);
        
-     userData.setAll(DataInserter.geth2InfoUser());
+    userData.setAll(DataInserter.geth2InfoUser());
         //startWebService();
+    convertHuellas(userData);
+    compareFingerprint(userData);
         
-        convertHuellas(userData);
-        compareFingerprint(userData);
-
-    
-        idSucursal = HuellaTorniquete.getIdSucursal();
+    idSucursal = HuellaTorniquete.getIdSucursal();
        // System.out.println("Obtenemos idSucursal: "+idSucursal);
        
-       buscarTextField.setOnKeyPressed(event -> {
+    buscarTextField.setOnKeyPressed(event -> {
         if (event.getCode() == KeyCode.ENTER) {
             String numero = buscarTextField.getText();
             processUserById(numero);
